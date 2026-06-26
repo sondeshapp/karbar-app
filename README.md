@@ -298,7 +298,5 @@ This project is licensed under the **MIT License** — see the [LICENSE](LICENSE
 Built with ❤️ using **Flutter** & **Dart**
 
 [![Flutter](https://img.shields.io/badge/Made%20with-Flutter-02569B?style=flat-square&logo=flutter)](https://flutter.dev)
-&nbsp;
-[![Betopia](https://img.shields.io/badge/Betopia-Limited-6D28D9?style=flat-square)](https://betopialimited.com)
 
 </div>
