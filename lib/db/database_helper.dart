@@ -7,6 +7,8 @@ import '../models/product.dart';
 import '../models/product_variant.dart';
 import '../models/cart_item.dart';
 import '../models/sale.dart';
+import '../models/customer.dart';
+import '../models/baki_payment.dart';
 import '../models/dashboard_data.dart';
 
 class DatabaseHelper {
@@ -45,7 +47,7 @@ class DatabaseHelper {
     }
     return openDatabase(
       path,
-      version: 2,
+      version: 3,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -55,6 +57,8 @@ class DatabaseHelper {
       _createTables(db);
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    await db.execute('DROP TABLE IF EXISTS baki_payments');
+    await db.execute('DROP TABLE IF EXISTS customers');
     await db.execute('DROP TABLE IF EXISTS sale_items');
     await db.execute('DROP TABLE IF EXISTS sales');
     await db.execute('DROP TABLE IF EXISTS product_variants');
@@ -90,10 +94,22 @@ class DatabaseHelper {
       )
     ''');
     await db.execute('''
+      CREATE TABLE customers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        phone TEXT DEFAULT '',
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
       CREATE TABLE sales (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         total_amount REAL NOT NULL,
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        payment_type TEXT NOT NULL DEFAULT 'cash',
+        customer_id INTEGER,
+        customer_name TEXT,
+        FOREIGN KEY (customer_id) REFERENCES customers(id)
       )
     ''');
     await db.execute('''
@@ -107,6 +123,16 @@ class DatabaseHelper {
         product_price REAL NOT NULL,
         quantity INTEGER NOT NULL,
         FOREIGN KEY (sale_id) REFERENCES sales(id)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE baki_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id INTEGER NOT NULL,
+        amount REAL NOT NULL,
+        note TEXT DEFAULT '',
+        paid_at TEXT NOT NULL,
+        FOREIGN KEY (customer_id) REFERENCES customers(id)
       )
     ''');
   }
@@ -204,6 +230,9 @@ class DatabaseHelper {
       final saleId = await txn.insert('sales', {
         'total_amount': sale.totalAmount,
         'created_at': sale.createdAt.toIso8601String(),
+        'payment_type': sale.paymentType,
+        'customer_id': sale.customerId,
+        'customer_name': sale.customerName,
       });
       for (final item in sale.items) {
         await txn.insert('sale_items', {
@@ -235,8 +264,9 @@ class DatabaseHelper {
       final itemRows = await db.query('sale_items',
           where: 'sale_id = ?', whereArgs: [saleId]);
       final items = itemRows.map((row) {
-        final product =
-            Product(id: row['product_id'] as int, name: row['product_name'] as String);
+        final product = Product(
+            id: row['product_id'] as int,
+            name: row['product_name'] as String);
         final variant = ProductVariant(
           id: row['variant_id'] as int,
           name: row['variant_name'] as String? ?? '',
@@ -245,13 +275,18 @@ class DatabaseHelper {
           stock: 0,
         );
         return CartItem(
-            product: product, variant: variant, quantity: row['quantity'] as int);
+            product: product,
+            variant: variant,
+            quantity: row['quantity'] as int);
       }).toList();
       sales.add(Sale(
         id: saleId,
         items: items,
         totalAmount: (saleRow['total_amount'] as num).toDouble(),
         createdAt: DateTime.parse(saleRow['created_at'] as String),
+        paymentType: saleRow['payment_type'] as String? ?? 'cash',
+        customerId: saleRow['customer_id'] as int?,
+        customerName: saleRow['customer_name'] as String?,
       ));
     }
     return sales;
@@ -263,6 +298,125 @@ class DatabaseHelper {
       await txn.delete('sale_items');
       await txn.delete('sales');
     });
+  }
+
+  // ── Customers ─────────────────────────────────────────────────────────────
+
+  Future<int> insertCustomer(Customer customer) async {
+    final db = await database;
+    return db.insert('customers', customer.toMap());
+  }
+
+  Future<List<Customer>> getAllCustomers() async {
+    final db = await database;
+    final rows = await db.query('customers', orderBy: 'name ASC');
+    return rows.map(Customer.fromMap).toList();
+  }
+
+  Future<List<Customer>> searchCustomers(String query) async {
+    final db = await database;
+    final q = '%${query.toLowerCase()}%';
+    final rows = await db.rawQuery(
+      'SELECT * FROM customers WHERE LOWER(name) LIKE ? OR phone LIKE ? ORDER BY name ASC',
+      [q, q],
+    );
+    return rows.map(Customer.fromMap).toList();
+  }
+
+  // ── Baki Payments ─────────────────────────────────────────────────────────
+
+  Future<int> insertBakiPayment(BakiPayment payment) async {
+    final db = await database;
+    return db.insert('baki_payments', payment.toMap());
+  }
+
+  Future<List<BakiPayment>> getBakiPaymentsForCustomer(int customerId) async {
+    final db = await database;
+    final rows = await db.query(
+      'baki_payments',
+      where: 'customer_id = ?',
+      whereArgs: [customerId],
+      orderBy: 'paid_at DESC',
+    );
+    return rows.map(BakiPayment.fromMap).toList();
+  }
+
+  Future<List<Sale>> getBakiSalesForCustomer(int customerId) async {
+    final db = await database;
+    final saleRows = await db.query(
+      'sales',
+      where: 'customer_id = ? AND payment_type = ?',
+      whereArgs: [customerId, 'baki'],
+      orderBy: 'created_at DESC',
+    );
+    final List<Sale> sales = [];
+    for (final saleRow in saleRows) {
+      final saleId = saleRow['id'] as int;
+      final itemRows = await db.query('sale_items',
+          where: 'sale_id = ?', whereArgs: [saleId]);
+      final items = itemRows.map((row) {
+        final product = Product(
+            id: row['product_id'] as int,
+            name: row['product_name'] as String);
+        final variant = ProductVariant(
+          id: row['variant_id'] as int,
+          name: row['variant_name'] as String? ?? '',
+          barcode: '',
+          price: (row['product_price'] as num).toDouble(),
+          stock: 0,
+        );
+        return CartItem(
+            product: product,
+            variant: variant,
+            quantity: row['quantity'] as int);
+      }).toList();
+      sales.add(Sale(
+        id: saleId,
+        items: items,
+        totalAmount: (saleRow['total_amount'] as num).toDouble(),
+        createdAt: DateTime.parse(saleRow['created_at'] as String),
+        paymentType: 'baki',
+        customerId: customerId,
+        customerName: saleRow['customer_name'] as String?,
+      ));
+    }
+    return sales;
+  }
+
+  Future<List<CustomerBakiSummary>> getCustomerBakiSummaries() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT
+        c.id, c.name, c.phone, c.created_at,
+        COALESCE((SELECT SUM(total_amount) FROM sales
+                  WHERE customer_id = c.id AND payment_type = 'baki'), 0) AS total_baki,
+        COALESCE((SELECT SUM(amount) FROM baki_payments
+                  WHERE customer_id = c.id), 0) AS total_paid,
+        (SELECT MAX(created_at) FROM sales
+         WHERE customer_id = c.id AND payment_type = 'baki') AS last_sale
+      FROM customers c
+      ORDER BY c.name ASC
+    ''');
+
+    final summaries = rows
+        .map((r) => CustomerBakiSummary(
+              customer: Customer(
+                id: r['id'] as int,
+                name: r['name'] as String,
+                phone: r['phone'] as String? ?? '',
+                createdAt: DateTime.parse(r['created_at'] as String),
+              ),
+              totalBaki: (r['total_baki'] as num).toDouble(),
+              totalPaid: (r['total_paid'] as num).toDouble(),
+              lastActivity: r['last_sale'] != null
+                  ? DateTime.tryParse(r['last_sale'] as String)
+                  : null,
+            ))
+        .where((s) => s.outstanding > 0)
+        .toList();
+
+    summaries.sort((a, b) => b.outstanding.compareTo(a.outstanding));
+    return summaries;
   }
 
   // ── Analytics ─────────────────────────────────────────────────────────────
@@ -296,7 +450,6 @@ class DatabaseHelper {
     final month = await statsFrom(monthStr);
     final allTime = await statsFrom(null);
 
-    // Top sellers
     final sellerRows = await db.rawQuery('''
       SELECT product_name, variant_name,
              SUM(quantity) AS qty,
@@ -315,7 +468,6 @@ class DatabaseHelper {
             ))
         .toList();
 
-    // Last 7 days
     final last7 = <DailyRevenue>[];
     for (int i = 6; i >= 0; i--) {
       final day = now.subtract(Duration(days: i));
@@ -334,19 +486,18 @@ class DatabaseHelper {
       ));
     }
 
-    // Low stock
     final allProducts = await getAllProducts();
     final lowStock = allProducts
         .where((p) => p.totalStock <= p.lowStockAlert)
         .toList()
       ..sort((a, b) => a.totalStock.compareTo(b.totalStock));
 
-    final productCount = (await db.rawQuery(
-            'SELECT COUNT(*) AS c FROM products'))
-        .first['c'] as int;
-    final variantCount = (await db.rawQuery(
-            'SELECT COUNT(*) AS c FROM product_variants'))
-        .first['c'] as int;
+    final productCount =
+        (await db.rawQuery('SELECT COUNT(*) AS c FROM products'))
+            .first['c'] as int;
+    final variantCount =
+        (await db.rawQuery('SELECT COUNT(*) AS c FROM product_variants'))
+            .first['c'] as int;
 
     return DashboardData(
       revenueToday: today.revenue,
@@ -357,9 +508,7 @@ class DatabaseHelper {
       salesThisMonth: month.count,
       revenueAllTime: allTime.revenue,
       salesAllTime: allTime.count,
-      avgSaleValue: allTime.count > 0
-          ? allTime.revenue / allTime.count
-          : 0,
+      avgSaleValue: allTime.count > 0 ? allTime.revenue / allTime.count : 0,
       totalProducts: productCount,
       totalVariants: variantCount,
       topSellers: topSellers,
@@ -367,4 +516,22 @@ class DatabaseHelper {
       last7Days: last7,
     );
   }
+}
+
+// ── View model ────────────────────────────────────────────────────────────────
+
+class CustomerBakiSummary {
+  final Customer customer;
+  final double totalBaki;
+  final double totalPaid;
+  final DateTime? lastActivity;
+
+  const CustomerBakiSummary({
+    required this.customer,
+    required this.totalBaki,
+    required this.totalPaid,
+    this.lastActivity,
+  });
+
+  double get outstanding => totalBaki - totalPaid;
 }

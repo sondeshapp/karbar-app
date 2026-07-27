@@ -8,7 +8,6 @@ import 'package:printing/printing.dart';
 import '../../models/sale.dart';
 import '../../providers/cart_provider.dart';
 import '../../core/constants.dart';
-import '../home_screen.dart';
 
 class ReceiptScreen extends ConsumerWidget {
   final Sale sale;
@@ -94,7 +93,6 @@ class ReceiptScreen extends ConsumerWidget {
 
   void _goToPos(BuildContext context, WidgetRef ref) {
     ref.read(cartProvider.notifier).clearCart();
-    ref.read(selectedTabProvider.notifier).state = 2;
     context.go('/');
   }
 

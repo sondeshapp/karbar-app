@@ -69,8 +69,20 @@ class SettingsScreen extends ConsumerWidget {
           colors: [Color(0xFF1E3A8A), Color(0xFF5B21B6)],
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          if (Navigator.canPop(context))
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: const Icon(Icons.arrow_back_ios_new_rounded,
+                    color: Colors.white, size: 20),
+              ),
+            ),
+          Row(
+          children: [
           Container(
             width: 68,
             height: 68,
@@ -120,6 +132,8 @@ class SettingsScreen extends ConsumerWidget {
               icon: const Icon(Icons.notifications_none_rounded,
                   color: Colors.white),
             ),
+          ),
+        ],
           ),
         ],
       ),
