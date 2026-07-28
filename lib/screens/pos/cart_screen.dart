@@ -14,56 +14,76 @@ import '../../widgets/empty_state.dart';
 import '../../core/constants.dart';
 import '../../providers/settings_provider.dart';
 
-class CartScreen extends ConsumerWidget {
+class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cartItems = ref.watch(cartProvider);
-    final notifier = ref.read(cartProvider.notifier);
-    final settings = ref.watch(settingsProvider);
-    final cf = NumberFormat.currency(locale: settings.currencyLocale, symbol: settings.currencySymbol);
+  ConsumerState<CartScreen> createState() => _CartScreenState();
+}
 
-    Future<void> completeSale(
-        String paymentType, int? customerId, String? customerName) async {
-      final sale = Sale(
-        items: List.from(cartItems),
-        totalAmount: notifier.totalAmount,
-        createdAt: DateTime.now(),
-        paymentType: paymentType,
-        customerId: customerId,
-        customerName: customerName,
-        discountAmount: notifier.orderDiscount,
-        discountType: notifier.orderDiscountType,
-      );
+class _CartScreenState extends ConsumerState<CartScreen> {
+  bool _processing = false;
+
+  Future<void> _completeSale(
+      String paymentType, int? customerId, String? customerName) async {
+    final notifier = ref.read(cartProvider.notifier);
+    final cartItems = ref.read(cartProvider);
+    final sale = Sale(
+      items: List.from(cartItems),
+      totalAmount: notifier.totalAmount,
+      createdAt: DateTime.now(),
+      paymentType: paymentType,
+      customerId: customerId,
+      customerName: customerName,
+      discountAmount: notifier.orderDiscount,
+      discountType: notifier.orderDiscountType,
+    );
+    try {
       await ref.read(salesProvider.notifier).completeSale(sale);
       await ref.read(warehouseProvider.notifier).loadProducts();
       if (paymentType == 'baki') {
         ref.read(bakiRefreshProvider.notifier).state++;
       }
-      if (context.mounted) {
-        context.go('/receipt', extra: sale);
+      ref.read(cartProvider.notifier).clearCart();
+      if (mounted) context.go('/receipt', extra: sale);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sale failed: $e'), backgroundColor: Colors.red),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _processing = false);
     }
+  }
 
-    void showPaymentSheet() {
-      showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        backgroundColor: Colors.transparent,
-        builder: (ctx) => _PaymentSheet(
-          total: notifier.totalAmount,
-          onCash: () {
-            Navigator.pop(ctx);
-            completeSale('cash', null, null);
-          },
-          onBaki: (Customer customer) {
-            Navigator.pop(ctx);
-            completeSale('baki', customer.id, customer.name);
-          },
-        ),
-      );
-    }
+  void _showPaymentSheet(double total) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _PaymentSheet(
+        total: total,
+        onCash: () {
+          Navigator.pop(ctx);
+          setState(() => _processing = true);
+          _completeSale('cash', null, null);
+        },
+        onBaki: (Customer customer) {
+          Navigator.pop(ctx);
+          setState(() => _processing = true);
+          _completeSale('baki', customer.id, customer.name);
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cartItems = ref.watch(cartProvider);
+    final notifier = ref.read(cartProvider.notifier);
+    final settings = ref.watch(settingsProvider);
+    final cf = NumberFormat.currency(locale: settings.currencyLocale, symbol: settings.currencySymbol);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -146,7 +166,8 @@ class CartScreen extends ConsumerWidget {
           ? null
           : _CheckoutSheet(
               total: notifier.totalAmount,
-              onComplete: showPaymentSheet,
+              processing: _processing,
+              onComplete: () => _showPaymentSheet(notifier.totalAmount),
             ),
     );
   }
@@ -649,9 +670,10 @@ class _OrderDiscountInputState extends ConsumerState<_OrderDiscountInput> {
 
 class _CheckoutSheet extends ConsumerWidget {
   final double total;
+  final bool processing;
   final VoidCallback onComplete;
 
-  const _CheckoutSheet({required this.total, required this.onComplete});
+  const _CheckoutSheet({required this.total, required this.onComplete, this.processing = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -670,23 +692,28 @@ class _CheckoutSheet extends ConsumerWidget {
         ],
       ),
       child: ElevatedButton(
-        onPressed: onComplete,
+        onPressed: processing ? null : onComplete,
         style: ElevatedButton.styleFrom(
           minimumSize: const Size(double.infinity, 52),
           shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(14)),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Complete sale',
-                style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold)),
-            Text(cf.format(total),
-                style: const TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.bold)),
-          ],
-        ),
+        child: processing
+            ? const SizedBox(
+                height: 22, width: 22,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              )
+            : Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Complete sale',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text(cf.format(total),
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold)),
+                ],
+              ),
       ),
     );
   }
