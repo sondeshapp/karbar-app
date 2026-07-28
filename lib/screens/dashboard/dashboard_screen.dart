@@ -75,14 +75,15 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-class _Body extends StatelessWidget {
+class _Body extends ConsumerWidget {
   final DashboardData data;
   final AppStrings s;
   const _Body({required this.data, required this.s});
 
   @override
-  Widget build(BuildContext context) {
-    final cf = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final cf = NumberFormat.currency(locale: settings.currencyLocale, symbol: settings.currencySymbol);
 
     return RefreshIndicator(
       onRefresh: () async {},
@@ -131,6 +132,26 @@ class _Body extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _StatCard(
+                label: 'Today Profit',
+                value: cf.format(data.profitToday),
+                sub: 'after cost of goods',
+                color: const Color(0xFF059669),
+                icon: Icons.trending_up_rounded,
+              ),
+              const SizedBox(width: 12),
+              _StatCard(
+                label: 'Margin',
+                value: '${data.marginPercent.toStringAsFixed(1)}%',
+                sub: 'of today\'s revenue',
+                color: const Color(0xFF0EA5E9),
+                icon: Icons.percent_rounded,
+              ),
+            ],
+          ),
           const SizedBox(height: 20),
 
           // ── Inventory summary ───────────────────────────────────
@@ -165,8 +186,11 @@ class _Body extends StatelessWidget {
           // ── 7-day revenue chart ─────────────────────────────────
           _SectionCard(
             title: s.revenueChart,
-            child:
-                _RevenueChart(days: data.last7Days, noDataLabel: s.noData),
+            child: _RevenueChart(
+              days: data.last7Days,
+              noDataLabel: s.noData,
+              currencySymbol: settings.currencySymbol,
+            ),
           ),
           const SizedBox(height: 16),
 
@@ -181,6 +205,7 @@ class _Body extends StatelessWidget {
                     item: e.value,
                     maxQty: data.topSellers.first.quantitySold,
                     s: s,
+                    cf: cf,
                   );
                 }).toList(),
               ),
@@ -403,7 +428,8 @@ class _SectionCard extends StatelessWidget {
 class _RevenueChart extends StatelessWidget {
   final List<DailyRevenue> days;
   final String noDataLabel;
-  const _RevenueChart({required this.days, required this.noDataLabel});
+  final String currencySymbol;
+  const _RevenueChart({required this.days, required this.noDataLabel, required this.currencySymbol});
 
   @override
   Widget build(BuildContext context) {
@@ -418,7 +444,7 @@ class _RevenueChart extends StatelessWidget {
     }
 
     final maxAmt = days.map((d) => d.amount).reduce(max);
-    final cf = NumberFormat.compactCurrency(symbol: '\$', decimalDigits: 0);
+    final cf = NumberFormat.compactCurrency(symbol: currencySymbol, decimalDigits: 0);
     final today = DateTime.now();
 
     return Padding(
@@ -508,18 +534,19 @@ class _BestSellerRow extends StatelessWidget {
   final BestSellerItem item;
   final int maxQty;
   final AppStrings s;
+  final NumberFormat cf;
 
   const _BestSellerRow({
     required this.rank,
     required this.item,
     required this.maxQty,
     required this.s,
+    required this.cf,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cf = NumberFormat.currency(locale: 'en_US', symbol: '\$');
     final ratio = maxQty > 0 ? item.quantitySold / maxQty : 0.0;
     final showVariant =
         item.variantName.isNotEmpty && item.variantName != 'Default';

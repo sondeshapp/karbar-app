@@ -8,6 +8,8 @@ class Sale {
   final String paymentType; // 'cash' | 'baki'
   final int? customerId;
   final String? customerName;
+  final double discountAmount;
+  final String discountType; // 'flat' | 'percent'
 
   const Sale({
     this.id,
@@ -17,6 +19,8 @@ class Sale {
     this.paymentType = 'cash',
     this.customerId,
     this.customerName,
+    this.discountAmount = 0,
+    this.discountType = 'flat',
   });
 
   bool get isBaki => paymentType == 'baki';

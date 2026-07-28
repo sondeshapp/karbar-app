@@ -12,6 +12,7 @@ import '../../db/database_helper.dart';
 import '../../widgets/cart_item_tile.dart';
 import '../../widgets/empty_state.dart';
 import '../../core/constants.dart';
+import '../../providers/settings_provider.dart';
 
 class CartScreen extends ConsumerWidget {
   const CartScreen({super.key});
@@ -20,7 +21,8 @@ class CartScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final cartItems = ref.watch(cartProvider);
     final notifier = ref.read(cartProvider.notifier);
-    final cf = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+    final settings = ref.watch(settingsProvider);
+    final cf = NumberFormat.currency(locale: settings.currencyLocale, symbol: settings.currencySymbol);
 
     Future<void> completeSale(
         String paymentType, int? customerId, String? customerName) async {
@@ -31,6 +33,8 @@ class CartScreen extends ConsumerWidget {
         paymentType: paymentType,
         customerId: customerId,
         customerName: customerName,
+        discountAmount: notifier.orderDiscount,
+        discountType: notifier.orderDiscountType,
       );
       await ref.read(salesProvider.notifier).completeSale(sale);
       await ref.read(warehouseProvider.notifier).loadProducts();
@@ -110,8 +114,22 @@ class CartScreen extends ConsumerWidget {
                       _SummaryRow(
                         label:
                             '${notifier.itemCount} item${notifier.itemCount == 1 ? '' : 's'}',
-                        value: cf.format(notifier.totalAmount),
+                        value: cf.format(notifier.subtotal),
                       ),
+                      const SizedBox(height: 10),
+                      _OrderDiscountInput(cf: cf),
+                      if (notifier.orderDiscountFlat > 0)
+                        _SummaryRow(
+                          label: 'Discount',
+                          value: '-${cf.format(notifier.orderDiscountFlat)}',
+                          valueColor: kError,
+                        ),
+                      if (settings.showTax && settings.taxRate > 0)
+                        _SummaryRow(
+                          label:
+                              'VAT (${(settings.taxRate * 100).toStringAsFixed(0)}%)',
+                          value: cf.format(notifier.taxAmount),
+                        ),
                       const Divider(height: 20),
                       _SummaryRow(
                         label: 'Total',
@@ -164,7 +182,8 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final cf = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+    final settings = ref.watch(settingsProvider);
+    final cf = NumberFormat.currency(locale: settings.currencyLocale, symbol: settings.currencySymbol);
     final bottomPad = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
@@ -388,7 +407,7 @@ class _CustomerPicker extends ConsumerWidget {
           child: customersAsync.when(
             loading: () =>
                 const Center(child: CircularProgressIndicator()),
-            error: (_, __) =>
+            error: (_, _) =>
                 const Center(child: Text('Error loading customers')),
             data: (customers) => ListView(
               shrinkWrap: true,
@@ -549,15 +568,95 @@ class _SummaryRow extends StatelessWidget {
   }
 }
 
-class _CheckoutSheet extends StatelessWidget {
+// ── Order-level discount input ────────────────────────────────────────────────
+
+class _OrderDiscountInput extends ConsumerStatefulWidget {
+  final NumberFormat cf;
+  const _OrderDiscountInput({required this.cf});
+
+  @override
+  ConsumerState<_OrderDiscountInput> createState() => _OrderDiscountInputState();
+}
+
+class _OrderDiscountInputState extends ConsumerState<_OrderDiscountInput> {
+  final _ctrl = TextEditingController();
+  bool _isPercent = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 36,
+            child: TextField(
+              controller: _ctrl,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              style: const TextStyle(fontSize: 13),
+              decoration: InputDecoration(
+                hintText: 'Discount',
+                hintStyle: const TextStyle(fontSize: 13),
+                prefixText: _isPercent ? '' : '${widget.cf.currencySymbol} ',
+                suffixText: _isPercent ? '%' : null,
+                border: const OutlineInputBorder(),
+                isDense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              ),
+              onChanged: (v) {
+                final amount = double.tryParse(v) ?? 0;
+                ref.read(cartProvider.notifier).setOrderDiscount(
+                  amount, _isPercent ? 'percent' : 'flat',
+                );
+              },
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        GestureDetector(
+          onTap: () {
+            setState(() => _isPercent = !_isPercent);
+            final amount = double.tryParse(_ctrl.text) ?? 0;
+            ref.read(cartProvider.notifier).setOrderDiscount(
+              amount, _isPercent ? 'percent' : 'flat',
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(
+              color: _isPercent ? kPrimary : Colors.grey.shade200,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Text(
+              '%',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                color: _isPercent ? Colors.white : Colors.grey.shade700,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _CheckoutSheet extends ConsumerWidget {
   final double total;
   final VoidCallback onComplete;
 
   const _CheckoutSheet({required this.total, required this.onComplete});
 
   @override
-  Widget build(BuildContext context) {
-    final cf = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final cf = NumberFormat.currency(locale: settings.currencyLocale, symbol: settings.currencySymbol);
     return Container(
       padding: EdgeInsets.fromLTRB(kPadding, 12, kPadding,
           MediaQuery.of(context).padding.bottom + 12),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import '../../db/database_helper.dart';
 import '../../models/baki_payment.dart';
+import '../../models/sale.dart';
 import '../../providers/baki_provider.dart';
 
 class CustomerDetailScreen extends ConsumerWidget {
@@ -469,7 +470,7 @@ class _EmptyCard extends StatelessWidget {
 }
 
 class _SaleTile extends StatelessWidget {
-  final dynamic sale;
+  final Sale sale;
   final NumberFormat fmt;
   final bool isDark;
   const _SaleTile(
@@ -478,7 +479,7 @@ class _SaleTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateStr =
-        DateFormat('d MMM, h:mm a').format(sale.createdAt as DateTime);
+        DateFormat('d MMM, h:mm a').format(sale.createdAt);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -514,7 +515,7 @@ class _SaleTile extends StatelessWidget {
             ),
           ),
           Text(
-            fmt.format(sale.totalAmount as double),
+            fmt.format(sale.totalAmount),
             style: const TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 14,

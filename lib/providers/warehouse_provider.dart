@@ -25,6 +25,11 @@ class WarehouseNotifier extends StateNotifier<List<Product>> {
     await _db.deleteProduct(id);
     state = state.where((p) => p.id != id).toList();
   }
+
+  Future<void> stockIn(int variantId, int quantity, {double costPrice = 0}) async {
+    await _db.stockIn(variantId, quantity, costPrice: costPrice);
+    await loadProducts();
+  }
 }
 
 final warehouseProvider =

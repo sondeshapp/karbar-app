@@ -7,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import '../../models/sale.dart';
 import '../../providers/cart_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../core/constants.dart';
 
 class ReceiptScreen extends ConsumerWidget {
@@ -14,10 +15,10 @@ class ReceiptScreen extends ConsumerWidget {
 
   const ReceiptScreen({super.key, required this.sale});
 
-  Future<pw.Document> _buildPdf() async {
+  Future<pw.Document> _buildPdf(String symbol, String locale) async {
     final doc = pw.Document();
     final dateFormat = DateFormat('dd MMM yyyy  HH:mm');
-    final cf = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+    final cf = NumberFormat.currency(locale: locale, symbol: symbol);
 
     doc.addPage(
       pw.Page(
@@ -98,6 +99,9 @@ class ReceiptScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final sym = settings.currencySymbol;
+    final loc = settings.currencyLocale;
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -110,7 +114,7 @@ class ReceiptScreen extends ConsumerWidget {
             Expanded(
               child: PdfPreview(
                 build: (PdfPageFormat format) async {
-                  final doc = await _buildPdf();
+                  final doc = await _buildPdf(sym, loc);
                   return doc.save();
                 },
                 allowPrinting: false,
@@ -138,7 +142,7 @@ class ReceiptScreen extends ConsumerWidget {
                       icon: const Icon(Icons.share),
                       label: const Text('Share receipt'),
                       onPressed: () async {
-                        final doc = await _buildPdf();
+                        final doc = await _buildPdf(sym, loc);
                         final bytes = await doc.save();
                         await Printing.sharePdf(
                           bytes: bytes,

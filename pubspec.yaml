@@ -10,7 +10,7 @@ dependencies:
   flutter:
     sdk: flutter
   cupertino_icons: ^1.0.8
-  mobile_scanner: ^5.0.0
+  mobile_scanner: ^7.4.0
   sqflite: ^2.3.3
   sqflite_common_ffi: ^2.3.4
   path_provider: ^2.1.3

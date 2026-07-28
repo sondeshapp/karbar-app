@@ -171,12 +171,21 @@ class _CustomerCard extends StatelessWidget {
     required this.onTap,
   });
 
+  static Color _agingColor(DateTime? lastActivity) {
+    if (lastActivity == null) return const Color(0xFF6B7280);
+    final days = DateTime.now().difference(lastActivity).inDays;
+    if (days < 7) return const Color(0xFF059669);
+    if (days <= 30) return const Color(0xFFF59E0B);
+    return const Color(0xFFEF4444);
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = summary.customer;
     final lastStr = summary.lastActivity != null
         ? _relativeDate(summary.lastActivity!)
         : '';
+    final agingColor = _agingColor(summary.lastActivity);
 
     return GestureDetector(
       onTap: onTap,
@@ -200,14 +209,14 @@ class _CustomerCard extends StatelessWidget {
               width: 44,
               height: 44,
               decoration: BoxDecoration(
-                color: const Color(0xFFF59E0B).withAlpha(25),
+                color: agingColor.withAlpha(25),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Center(
                 child: Text(
                   c.name.isNotEmpty ? c.name[0].toUpperCase() : '?',
-                  style: const TextStyle(
-                    color: Color(0xFFD97706),
+                  style: TextStyle(
+                    color: agingColor,
                     fontSize: 18,
                     fontWeight: FontWeight.w800,
                   ),

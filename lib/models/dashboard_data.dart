@@ -36,6 +36,8 @@ class DashboardData {
   final double revenueAllTime;
   final int salesAllTime;
   final double avgSaleValue;
+  final double profitToday;
+  final double marginPercent;
   final int totalProducts;
   final int totalVariants;
   final List<BestSellerItem> topSellers;
@@ -52,6 +54,8 @@ class DashboardData {
     required this.revenueAllTime,
     required this.salesAllTime,
     required this.avgSaleValue,
+    required this.profitToday,
+    required this.marginPercent,
     required this.totalProducts,
     required this.totalVariants,
     required this.topSellers,

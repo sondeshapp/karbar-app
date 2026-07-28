@@ -26,7 +26,8 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     final sales = ref.watch(salesProvider);
     final s = ref.watch(stringsProvider);
     final dateFormat = DateFormat('dd MMM yyyy  HH:mm');
-    final cf = NumberFormat.currency(locale: 'en_US', symbol: '\$');
+    final settings = ref.watch(settingsProvider);
+    final cf = NumberFormat.currency(locale: settings.currencyLocale, symbol: settings.currencySymbol);
 
     return Scaffold(
       appBar: AppBar(title: Text(s.salesHistory)),
@@ -43,11 +44,19 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 return ExpansionTile(
                   title: Text(dateFormat.format(sale.createdAt)),
                   subtitle: Text(s.itemsText(totalItems)),
-                  trailing: Text(
-                    cf.format(sale.totalAmount),
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF2563EB)),
+                  trailing: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        cf.format(sale.totalAmount),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF2563EB)),
+                      ),
+                      const SizedBox(height: 3),
+                      _PaymentChip(type: sale.paymentType),
+                    ],
                   ),
                   children: sale.items.map((item) {
                     final showVariant = item.variant.name.isNotEmpty &&
@@ -71,6 +80,28 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
                 );
               },
             ),
+    );
+  }
+}
+
+class _PaymentChip extends StatelessWidget {
+  final String type;
+  const _PaymentChip({required this.type});
+
+  @override
+  Widget build(BuildContext context) {
+    final isBaki = type == 'baki';
+    final color = isBaki ? const Color(0xFFF59E0B) : const Color(0xFF059669);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withAlpha(22),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Text(
+        isBaki ? 'বাকি ⏳' : 'Cash ✓',
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color),
+      ),
     );
   }
 }

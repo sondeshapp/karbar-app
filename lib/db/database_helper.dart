@@ -47,7 +47,7 @@ class DatabaseHelper {
     }
     return openDatabase(
       path,
-      version: 3,
+      version: 5,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -57,13 +57,50 @@ class DatabaseHelper {
       _createTables(db);
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    await db.execute('DROP TABLE IF EXISTS baki_payments');
-    await db.execute('DROP TABLE IF EXISTS customers');
-    await db.execute('DROP TABLE IF EXISTS sale_items');
-    await db.execute('DROP TABLE IF EXISTS sales');
-    await db.execute('DROP TABLE IF EXISTS product_variants');
-    await db.execute('DROP TABLE IF EXISTS products');
-    await _createTables(db);
+    // ponytail: additive-only; never DROP. try/catch because SQLite ALTER TABLE
+    // has no IF NOT EXISTS for columns.
+    if (oldVersion < 2) {
+      try { await db.execute("ALTER TABLE sales ADD COLUMN payment_type TEXT NOT NULL DEFAULT 'cash'"); } catch (_) {}
+      try { await db.execute('ALTER TABLE sales ADD COLUMN customer_id INTEGER'); } catch (_) {}
+      try { await db.execute('ALTER TABLE sales ADD COLUMN customer_name TEXT'); } catch (_) {}
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS customers (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          phone TEXT DEFAULT '',
+          created_at TEXT NOT NULL
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS baki_payments (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          customer_id INTEGER NOT NULL,
+          amount REAL NOT NULL,
+          note TEXT DEFAULT '',
+          paid_at TEXT NOT NULL,
+          FOREIGN KEY (customer_id) REFERENCES customers(id)
+        )
+      ''');
+    }
+    // v2 → v3: no schema changes
+    if (oldVersion < 4) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS stock_movements (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          variant_id INTEGER NOT NULL,
+          quantity INTEGER NOT NULL,
+          cost_price REAL DEFAULT 0,
+          supplier TEXT DEFAULT '',
+          created_at TEXT NOT NULL,
+          FOREIGN KEY (variant_id) REFERENCES product_variants(id)
+        )
+      ''');
+    }
+    if (oldVersion < 5) {
+      try { await db.execute('ALTER TABLE sales ADD COLUMN discount_amount REAL DEFAULT 0'); } catch (_) {}
+      try { await db.execute("ALTER TABLE sales ADD COLUMN discount_type TEXT DEFAULT 'flat'"); } catch (_) {}
+      try { await db.execute('ALTER TABLE sale_items ADD COLUMN discount_amount REAL DEFAULT 0'); } catch (_) {}
+    }
   }
 
   Future<void> _createTables(Database db) async {
@@ -109,6 +146,8 @@ class DatabaseHelper {
         payment_type TEXT NOT NULL DEFAULT 'cash',
         customer_id INTEGER,
         customer_name TEXT,
+        discount_amount REAL DEFAULT 0,
+        discount_type TEXT DEFAULT 'flat',
         FOREIGN KEY (customer_id) REFERENCES customers(id)
       )
     ''');
@@ -122,6 +161,7 @@ class DatabaseHelper {
         variant_name TEXT NOT NULL DEFAULT '',
         product_price REAL NOT NULL,
         quantity INTEGER NOT NULL,
+        discount_amount REAL DEFAULT 0,
         FOREIGN KEY (sale_id) REFERENCES sales(id)
       )
     ''');
@@ -133,6 +173,17 @@ class DatabaseHelper {
         note TEXT DEFAULT '',
         paid_at TEXT NOT NULL,
         FOREIGN KEY (customer_id) REFERENCES customers(id)
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE stock_movements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        variant_id INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        cost_price REAL DEFAULT 0,
+        supplier TEXT DEFAULT '',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (variant_id) REFERENCES product_variants(id)
       )
     ''');
   }
@@ -222,6 +273,24 @@ class DatabaseHelper {
     });
   }
 
+  Future<void> stockIn(int variantId, int quantity,
+      {double costPrice = 0, String supplier = ''}) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      await txn.rawUpdate(
+        'UPDATE product_variants SET stock = stock + ? WHERE id = ?',
+        [quantity, variantId],
+      );
+      await txn.insert('stock_movements', {
+        'variant_id': variantId,
+        'quantity': quantity,
+        'cost_price': costPrice,
+        'supplier': supplier,
+        'created_at': DateTime.now().toIso8601String(),
+      });
+    });
+  }
+
   // ── Sales ─────────────────────────────────────────────────────────────────
 
   Future<int> insertSale(Sale sale) async {
@@ -233,6 +302,8 @@ class DatabaseHelper {
         'payment_type': sale.paymentType,
         'customer_id': sale.customerId,
         'customer_name': sale.customerName,
+        'discount_amount': sale.discountAmount,
+        'discount_type': sale.discountType,
       });
       for (final item in sale.items) {
         await txn.insert('sale_items', {
@@ -243,6 +314,7 @@ class DatabaseHelper {
           'variant_name': item.variant.name,
           'product_price': item.variant.price,
           'quantity': item.quantity,
+          'discount_amount': item.discountAmount,
         });
         if (item.variant.id != null) {
           await txn.rawUpdate(
@@ -275,9 +347,11 @@ class DatabaseHelper {
           stock: 0,
         );
         return CartItem(
-            product: product,
-            variant: variant,
-            quantity: row['quantity'] as int);
+          product: product,
+          variant: variant,
+          quantity: row['quantity'] as int,
+          discountAmount: (row['discount_amount'] as num? ?? 0).toDouble(),
+        );
       }).toList();
       sales.add(Sale(
         id: saleId,
@@ -287,6 +361,8 @@ class DatabaseHelper {
         paymentType: saleRow['payment_type'] as String? ?? 'cash',
         customerId: saleRow['customer_id'] as int?,
         customerName: saleRow['customer_name'] as String?,
+        discountAmount: (saleRow['discount_amount'] as num? ?? 0).toDouble(),
+        discountType: saleRow['discount_type'] as String? ?? 'flat',
       ));
     }
     return sales;
@@ -421,6 +497,19 @@ class DatabaseHelper {
 
   // ── Analytics ─────────────────────────────────────────────────────────────
 
+  Future<double> _profitFrom(Database db, String? from) async {
+    final where = from != null ? 'WHERE s.created_at >= ?' : '';
+    final args = from != null ? [from] : <dynamic>[];
+    final rows = await db.rawQuery('''
+      SELECT COALESCE(SUM((si.product_price - COALESCE(p.cost_price, 0)) * si.quantity), 0) AS profit
+      FROM sale_items si
+      JOIN sales s ON si.sale_id = s.id
+      LEFT JOIN products p ON si.product_id = p.id
+      $where
+    ''', args);
+    return (rows.first['profit'] as num).toDouble();
+  }
+
   Future<DashboardData> getDashboardData() async {
     final db = await database;
     final now = DateTime.now();
@@ -499,6 +588,9 @@ class DatabaseHelper {
         (await db.rawQuery('SELECT COUNT(*) AS c FROM product_variants'))
             .first['c'] as int;
 
+    final todayProfit = await _profitFrom(db, todayStr);
+    final margin = today.revenue > 0 ? todayProfit / today.revenue * 100 : 0.0;
+
     return DashboardData(
       revenueToday: today.revenue,
       salesToday: today.count,
@@ -509,6 +601,8 @@ class DatabaseHelper {
       revenueAllTime: allTime.revenue,
       salesAllTime: allTime.count,
       avgSaleValue: allTime.count > 0 ? allTime.revenue / allTime.count : 0,
+      profitToday: todayProfit,
+      marginPercent: margin,
       totalProducts: productCount,
       totalVariants: variantCount,
       topSellers: topSellers,
