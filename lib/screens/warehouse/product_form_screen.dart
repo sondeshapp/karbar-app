@@ -21,7 +21,19 @@ const _defaultCategories = [
   'Other',
 ];
 
-const _units = ['pcs', 'g', 'kg', 'ml', 'l', 'oz', 'lb', 'm', 'cm', 'box', 'pack'];
+const _units = [
+  'pcs',
+  'g',
+  'kg',
+  'ml',
+  'l',
+  'oz',
+  'lb',
+  'm',
+  'cm',
+  'box',
+  'pack',
+];
 
 class _VariantRow {
   final TextEditingController nameCtrl;
@@ -29,6 +41,7 @@ class _VariantRow {
   final TextEditingController priceCtrl;
   final TextEditingController stockCtrl;
   int? id;
+  String? syncId;
 
   _VariantRow({
     String name = '',
@@ -36,10 +49,11 @@ class _VariantRow {
     String price = '',
     String stock = '0',
     this.id,
-  })  : nameCtrl = TextEditingController(text: name),
-        barcodeCtrl = TextEditingController(text: barcode),
-        priceCtrl = TextEditingController(text: price),
-        stockCtrl = TextEditingController(text: stock);
+    this.syncId,
+  }) : nameCtrl = TextEditingController(text: name),
+       barcodeCtrl = TextEditingController(text: barcode),
+       priceCtrl = TextEditingController(text: price),
+       stockCtrl = TextEditingController(text: stock);
 
   void dispose() {
     nameCtrl.dispose();
@@ -71,6 +85,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
   String _category = '';
   String _unit = 'pcs';
+  int _quantityPrecision = 0;
   String _imagePath = '';
   late List<_VariantRow> _variants;
 
@@ -83,22 +98,28 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     _brandCtrl = TextEditingController(text: p?.brand ?? '');
     _skuCtrl = TextEditingController(text: p?.sku ?? '');
     _costPriceCtrl = TextEditingController(
-        text: p != null && p.costPrice > 0 ? p.costPrice.toString() : '');
-    _lowStockCtrl =
-        TextEditingController(text: p?.lowStockAlert.toString() ?? '5');
+      text: p != null && p.costPrice > 0 ? p.costPrice.toString() : '',
+    );
+    _lowStockCtrl = TextEditingController(
+      text: p?.lowStockAlert.toString() ?? '5',
+    );
     _category = p?.category ?? '';
     _unit = p?.unit ?? 'pcs';
+    _quantityPrecision = p?.quantityPrecision ?? 0;
     _imagePath = p?.imagePath ?? '';
 
     if (p != null && p.variants.isNotEmpty) {
       _variants = p.variants
-          .map((v) => _VariantRow(
-                name: v.name,
-                barcode: v.barcode,
-                price: v.price.toString(),
-                stock: v.stock.toString(),
-                id: v.id,
-              ))
+          .map(
+            (v) => _VariantRow(
+              name: v.name,
+              barcode: v.barcode,
+              price: v.price.toString(),
+              stock: v.stock.toString(),
+              id: v.id,
+              syncId: v.syncId,
+            ),
+          )
           .toList();
     } else {
       _variants = [_VariantRow()];
@@ -164,23 +185,24 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
       final row = e.value;
       return ProductVariant(
         id: row.id,
-        name: _variants.length == 1
-            ? 'Default'
-            : row.nameCtrl.text.trim(),
+        syncId: row.syncId,
+        name: _variants.length == 1 ? 'Default' : row.nameCtrl.text.trim(),
         barcode: row.barcodeCtrl.text.trim(),
         price: double.parse(row.priceCtrl.text.trim()),
-        stock: int.parse(row.stockCtrl.text.trim()),
+        stock: double.parse(row.stockCtrl.text.trim()),
       );
     }).toList();
 
     final product = Product(
       id: widget.product?.id,
+      syncId: widget.product?.syncId,
       name: _nameCtrl.text.trim(),
       description: _descCtrl.text.trim(),
       category: _category,
       brand: _brandCtrl.text.trim(),
       sku: _skuCtrl.text.trim(),
       unit: _unit,
+      quantityPrecision: _quantityPrecision,
       imagePath: _imagePath,
       costPrice: double.tryParse(_costPriceCtrl.text.trim()) ?? 0,
       lowStockAlert: int.tryParse(_lowStockCtrl.text.trim()) ?? 5,
@@ -190,14 +212,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     if (widget.product == null) {
       await ref.read(warehouseProvider.notifier).addProduct(product);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Product added')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Product added')));
       }
     } else {
       await ref.read(warehouseProvider.notifier).updateProduct(product);
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('Product updated')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Product updated')));
       }
     }
 
@@ -221,8 +245,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title:
-            Text(widget.product == null ? 'Add product' : 'Edit product'),
+        title: Text(widget.product == null ? 'Add product' : 'Edit product'),
       ),
       body: Form(
         key: _formKey,
@@ -250,8 +273,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               optionsBuilder: (textEditingValue) {
                 final q = textEditingValue.text.toLowerCase();
                 if (q.isEmpty) return suggestions;
-                return suggestions
-                    .where((c) => c.toLowerCase().contains(q));
+                return suggestions.where((c) => c.toLowerCase().contains(q));
               },
               onSelected: (value) => setState(() => _category = value),
               fieldViewBuilder: (ctx, controller, focusNode, onSubmitted) {
@@ -261,8 +283,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   decoration: const InputDecoration(
                     labelText: 'Category',
                     hintText: 'Type or choose a category',
-                    suffixIcon:
-                        Icon(Icons.arrow_drop_down, color: Colors.grey),
+                    suffixIcon: Icon(Icons.arrow_drop_down, color: Colors.grey),
                   ),
                   onChanged: (v) => setState(() => _category = v.trim()),
                 );
@@ -277,7 +298,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             const SizedBox(height: 12),
             TextFormField(
               controller: _skuCtrl,
-              decoration: const InputDecoration(labelText: 'SKU / Internal code'),
+              decoration: const InputDecoration(
+                labelText: 'SKU / Internal code',
+              ),
             ),
             const SizedBox(height: kPadding),
             _sectionLabel('Pricing & stock defaults'),
@@ -289,8 +312,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                     initialValue: _units.contains(_unit) ? _unit : 'pcs',
                     decoration: const InputDecoration(labelText: 'Unit'),
                     items: _units
-                        .map((u) =>
-                            DropdownMenuItem(value: u, child: Text(u)))
+                        .map((u) => DropdownMenuItem(value: u, child: Text(u)))
                         .toList(),
                     onChanged: (v) => setState(() => _unit = v ?? 'pcs'),
                   ),
@@ -299,10 +321,10 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 Expanded(
                   child: TextFormField(
                     controller: _costPriceCtrl,
-                    decoration:
-                        const InputDecoration(labelText: 'Cost price'),
+                    decoration: const InputDecoration(labelText: 'Cost price'),
                     keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true),
+                      decimal: true,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -310,18 +332,35 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                   child: TextFormField(
                     controller: _lowStockCtrl,
                     decoration: const InputDecoration(
-                        labelText: 'Low stock alert'),
+                      labelText: 'Low stock alert',
+                    ),
                     keyboardType: TextInputType.number,
                   ),
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<int>(
+              initialValue: _quantityPrecision,
+              decoration: const InputDecoration(
+                labelText: 'Quantity decimals',
+                helperText: 'Choose 3 for weight, volume, or length sales.',
+              ),
+              items: const [
+                DropdownMenuItem(value: 0, child: Text('Whole units')),
+                DropdownMenuItem(
+                  value: 3,
+                  child: Text('Up to 3 decimal places'),
+                ),
+              ],
+              onChanged: (value) =>
+                  setState(() => _quantityPrecision = value ?? 0),
+            ),
             const SizedBox(height: kPadding),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                _sectionLabel(
-                    'Sizes / Variants (${_variants.length})'),
+                _sectionLabel('Sizes / Variants (${_variants.length})'),
                 TextButton.icon(
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Add size'),
@@ -330,13 +369,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               ],
             ),
             const SizedBox(height: 8),
-            ..._variants.asMap().entries.map((e) =>
-                _buildVariantRow(e.key, e.value)),
-            const SizedBox(height: kPadding * 2),
-            ElevatedButton(
-              onPressed: _save,
-              child: const Text('Save product'),
+            ..._variants.asMap().entries.map(
+              (e) => _buildVariantRow(e.key, e.value),
             ),
+            const SizedBox(height: kPadding * 2),
+            ElevatedButton(onPressed: _save, child: const Text('Save product')),
           ],
         ),
       ),
@@ -362,11 +399,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
             : const Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.add_photo_alternate_outlined,
-                      size: 40, color: Colors.grey),
+                  Icon(
+                    Icons.add_photo_alternate_outlined,
+                    size: 40,
+                    color: Colors.grey,
+                  ),
                   SizedBox(height: 6),
-                  Text('Tap to add product photo',
-                      style: TextStyle(color: Colors.grey)),
+                  Text(
+                    'Tap to add product photo',
+                    style: TextStyle(color: Colors.grey),
+                  ),
                 ],
               ),
       ),
@@ -391,13 +433,18 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               Text(
                 showName ? 'Variant ${index + 1}' : 'Pricing & stock',
                 style: const TextStyle(
-                    fontWeight: FontWeight.w600, fontSize: 13),
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
               ),
               const Spacer(),
               if (_variants.length > 1)
                 IconButton(
-                  icon: const Icon(Icons.delete_outline,
-                      size: 18, color: kError),
+                  icon: const Icon(
+                    Icons.delete_outline,
+                    size: 18,
+                    color: kError,
+                  ),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(),
                   onPressed: () => _removeVariant(index),
@@ -408,8 +455,9 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
           if (showName) ...[
             TextFormField(
               controller: row.nameCtrl,
-              decoration:
-                  const InputDecoration(labelText: 'Size / Variant name'),
+              decoration: const InputDecoration(
+                labelText: 'Size / Variant name',
+              ),
               validator: (v) => showName && (v == null || v.trim().isEmpty)
                   ? 'Required'
                   : null,
@@ -421,8 +469,7 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               Expanded(
                 child: TextFormField(
                   controller: row.barcodeCtrl,
-                  decoration:
-                      const InputDecoration(labelText: 'Barcode'),
+                  decoration: const InputDecoration(labelText: 'Barcode'),
                 ),
               ),
               IconButton(
@@ -437,10 +484,12 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
               Expanded(
                 child: TextFormField(
                   controller: row.priceCtrl,
-                  decoration:
-                      const InputDecoration(labelText: 'Selling price *'),
+                  decoration: const InputDecoration(
+                    labelText: 'Selling price *',
+                  ),
                   keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true),
+                    decimal: true,
+                  ),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
                       return 'Required';
@@ -456,11 +505,16 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
                 child: TextFormField(
                   controller: row.stockCtrl,
                   decoration: const InputDecoration(labelText: 'Stock *'),
-                  keyboardType: TextInputType.number,
+                  keyboardType: TextInputType.numberWithOptions(
+                    decimal: _quantityPrecision > 0,
+                  ),
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return 'Required';
-                    final i = int.tryParse(v.trim());
-                    if (i == null || i < 0) return 'Invalid';
+                    final i = double.tryParse(v.trim());
+                    if (i == null || !i.isFinite || i < 0) return 'Invalid';
+                    if (_quantityPrecision == 0 && i % 1 != 0) {
+                      return 'Use whole units or enable decimals above';
+                    }
                     return null;
                   },
                 ),
@@ -476,10 +530,11 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     return Text(
       text,
       style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: kPrimary,
-          letterSpacing: 0.3),
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: kPrimary,
+        letterSpacing: 0.3,
+      ),
     );
   }
 }

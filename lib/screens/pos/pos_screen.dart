@@ -11,6 +11,7 @@ import '../../providers/settings_provider.dart';
 import '../../widgets/product_grid_card.dart';
 import '../../widgets/empty_state.dart';
 import '../../core/constants.dart';
+import '../../core/quantity_format.dart';
 
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
@@ -48,7 +49,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -69,7 +71,9 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   child: Text(
                     product.name,
                     style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -90,9 +94,10 @@ class _PosScreenState extends ConsumerState<PosScreen> {
               trailing: Text(
                 cf.format(variant.price),
                 style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: kPrimary,
-                    fontSize: 15),
+                  fontWeight: FontWeight.bold,
+                  color: kPrimary,
+                  fontSize: 15,
+                ),
               ),
               onTap: () {
                 ref.read(cartProvider.notifier).addItem(product, variant);
@@ -116,17 +121,19 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Unique sorted categories
-    final categories = allProducts
-        .map((p) => p.category)
-        .where((c) => c.isNotEmpty)
-        .toSet()
-        .toList()
-      ..sort();
+    final categories =
+        allProducts
+            .map((p) => p.category)
+            .where((c) => c.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
 
     // Filtered products
     final filtered = allProducts.where((p) {
       final q = _query.toLowerCase();
-      final matchesQuery = _query.isEmpty ||
+      final matchesQuery =
+          _query.isEmpty ||
           p.name.toLowerCase().contains(q) ||
           p.brand.toLowerCase().contains(q) ||
           p.category.toLowerCase().contains(q);
@@ -143,18 +150,18 @@ class _PosScreenState extends ConsumerState<PosScreen> {
     }
 
     final headerBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final inputBg =
-        isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F4F6);
+    final inputBg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F4F6);
     final hintColor = isDark ? Colors.white38 : Colors.grey;
-    final chipUnselectedBg =
-        isDark ? const Color(0xFF0F172A) : const Color(0xFFF3F4F6);
+    final chipUnselectedBg = isDark
+        ? const Color(0xFF0F172A)
+        : const Color(0xFFF3F4F6);
     final chipUnselectedText = isDark ? Colors.white70 : kText;
-    final dividerColor =
-        isDark ? const Color(0xFF334155) : kBorder;
+    final dividerColor = isDark ? const Color(0xFF334155) : kBorder;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF0F172A) : const Color(0xFFF5F5F5),
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF5F5F5),
       body: SafeArea(
         bottom: false,
         child: Stack(
@@ -164,8 +171,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                 // ── Search bar ──────────────────────────────────────────
                 Container(
                   color: headerBg,
-                  padding:
-                      const EdgeInsets.fromLTRB(kPadding, 10, 8, 10),
+                  padding: const EdgeInsets.fromLTRB(kPadding, 10, 8, 10),
                   child: Row(
                     children: [
                       if (Navigator.canPop(context))
@@ -173,12 +179,15 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                           padding: const EdgeInsets.only(right: 4),
                           child: IconButton(
                             icon: const Icon(
-                                Icons.arrow_back_ios_new_rounded,
-                                size: 18),
+                              Icons.arrow_back_ios_new_rounded,
+                              size: 18,
+                            ),
                             onPressed: () => Navigator.of(context).pop(),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(
-                                minWidth: 32, minHeight: 44),
+                              minWidth: 32,
+                              minHeight: 44,
+                            ),
                           ),
                         ),
                       Expanded(
@@ -190,7 +199,8 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                             border: isDark
                                 ? Border.all(
                                     color: Colors.white.withAlpha(10),
-                                    width: 0.5)
+                                    width: 0.5,
+                                  )
                                 : null,
                           ),
                           child: TextField(
@@ -199,23 +209,30 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                             decoration: InputDecoration(
                               hintText: s.searchProducts,
                               hintStyle: TextStyle(
-                                  color: hintColor, fontSize: 14),
-                              prefixIcon: Icon(Icons.search_rounded,
-                                  color: hintColor, size: 20),
+                                color: hintColor,
+                                fontSize: 14,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.search_rounded,
+                                color: hintColor,
+                                size: 20,
+                              ),
                               border: InputBorder.none,
                               isDense: true,
-                              contentPadding:
-                                  const EdgeInsets.symmetric(vertical: 12),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                              ),
                             ),
-                            onChanged: (v) =>
-                                setState(() => _query = v),
+                            onChanged: (v) => setState(() => _query = v),
                           ),
                         ),
                       ),
                       const SizedBox(width: 4),
                       IconButton(
-                        icon: const Icon(Icons.qr_code_scanner_rounded,
-                            color: kPrimary),
+                        icon: const Icon(
+                          Icons.qr_code_scanner_rounded,
+                          color: kPrimary,
+                        ),
                         onPressed: _scanBarcode,
                         tooltip: 'Scan barcode',
                       ),
@@ -230,30 +247,26 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                     child: ListView.separated(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: kPadding, vertical: 6),
+                        horizontal: kPadding,
+                        vertical: 6,
+                      ),
                       itemCount: categories.length + 1,
-                      separatorBuilder: (_, _) =>
-                          const SizedBox(width: 8),
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
                       itemBuilder: (_, i) {
-                        final cat =
-                            i == 0 ? '' : categories[i - 1];
-                        final label =
-                            i == 0 ? s.allCategories : cat;
+                        final cat = i == 0 ? '' : categories[i - 1];
+                        final label = i == 0 ? s.allCategories : cat;
                         final selected = _selectedCategory == cat;
                         return GestureDetector(
-                          onTap: () => setState(
-                              () => _selectedCategory = cat),
+                          onTap: () => setState(() => _selectedCategory = cat),
                           child: AnimatedContainer(
-                            duration:
-                                const Duration(milliseconds: 150),
+                            duration: const Duration(milliseconds: 150),
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 4),
+                              horizontal: 14,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
-                              color: selected
-                                  ? kPrimary
-                                  : chipUnselectedBg,
-                              borderRadius:
-                                  BorderRadius.circular(20),
+                              color: selected ? kPrimary : chipUnselectedBg,
+                              borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
                               label,
@@ -288,50 +301,46 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                           ),
                           itemCount: grouped.length,
                           itemBuilder: (ctx, sectionIdx) {
-                            final cat = grouped.keys
-                                .elementAt(sectionIdx);
+                            final cat = grouped.keys.elementAt(sectionIdx);
                             final products = grouped[cat]!;
                             return Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if (grouped.length > 1 ||
                                     _selectedCategory.isEmpty)
                                   Padding(
-                                    padding: const EdgeInsets
-                                        .fromLTRB(16, 14, 16, 6),
+                                    padding: const EdgeInsets.fromLTRB(
+                                      16,
+                                      14,
+                                      16,
+                                      6,
+                                    ),
                                     child: Text(
                                       cat,
                                       style: TextStyle(
                                         fontSize: 15,
-                                        fontWeight:
-                                            FontWeight.bold,
-                                        color: isDark
-                                            ? Colors.white
-                                            : kText,
+                                        fontWeight: FontWeight.bold,
+                                        color: isDark ? Colors.white : kText,
                                       ),
                                     ),
                                   ),
                                 GridView.builder(
                                   shrinkWrap: true,
-                                  physics:
-                                      const NeverScrollableScrollPhysics(),
-                                  padding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 12),
+                                  physics: const NeverScrollableScrollPhysics(),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                  ),
                                   gridDelegate:
                                       const SliverGridDelegateWithFixedCrossAxisCount(
-                                    crossAxisCount: 2,
-                                    childAspectRatio: 0.68,
-                                    crossAxisSpacing: 10,
-                                    mainAxisSpacing: 10,
-                                  ),
+                                        crossAxisCount: 2,
+                                        childAspectRatio: 0.68,
+                                        crossAxisSpacing: 10,
+                                        mainAxisSpacing: 10,
+                                      ),
                                   itemCount: products.length,
-                                  itemBuilder: (ctx, j) =>
-                                      ProductGridCard(
+                                  itemBuilder: (ctx, j) => ProductGridCard(
                                     product: products[j],
-                                    onVariantPick:
-                                        _showVariantPicker,
+                                    onVariantPick: _showVariantPicker,
                                   ),
                                 ),
                                 const SizedBox(height: 8),
@@ -368,7 +377,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
 // ── View Cart floating button ──────────────────────────────────────────────
 
 class _ViewCartBar extends StatelessWidget {
-  final int itemCount;
+  final double itemCount;
   final double total;
   final NumberFormat cf;
   final String label;
@@ -394,10 +403,7 @@ class _ViewCartBar extends StatelessWidget {
           decoration: BoxDecoration(
             color: kPrimary.withAlpha(230),
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: Colors.white.withAlpha(40),
-              width: 0.5,
-            ),
+            border: Border.all(color: Colors.white.withAlpha(40), width: 0.5),
             boxShadow: [
               BoxShadow(
                 color: kPrimary.withAlpha(90),
@@ -413,7 +419,9 @@ class _ViewCartBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(18),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 14),
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 child: Row(
                   children: [
                     Container(
@@ -425,7 +433,7 @@ class _ViewCartBar extends StatelessWidget {
                       ),
                       child: Center(
                         child: Text(
-                          '$itemCount',
+                          formatQuantity(itemCount, 3),
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,

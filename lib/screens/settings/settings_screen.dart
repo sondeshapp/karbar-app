@@ -1,33 +1,77 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/app_strings.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/sales_provider.dart';
+import '../../providers/staff_provider.dart';
 import '../history/history_screen.dart';
+import 'backup_restore_screen.dart';
+import 'shop_setup_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
-  const SettingsScreen({super.key});
+  final bool showBackButton;
+
+  const SettingsScreen({super.key, this.showBackButton = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
+    final staff = ref.watch(activeStaffProvider);
     final s = ref.watch(stringsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF0F4F8);
+
+    if (staff?.isOwner != true) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Settings')),
+        body: const Center(child: Text('Owner access is required.')),
+      );
+    }
 
     return Scaffold(
       backgroundColor: bg,
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          _buildHeader(context, s),
+          _buildHeader(context, s, settings, showBackButton: showBackButton),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildQuickAccess(context, ref, s),
-                const SizedBox(height: 24),
+                const SizedBox(height: 10),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.point_of_sale_rounded),
+                    title: const Text('Daily cash close'),
+                    subtitle: const Text(
+                      'Count the drawer and save the difference',
+                    ),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => context.push('/cash-close'),
+                  ),
+                ),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.admin_panel_settings_outlined),
+                    title: const Text('Staff access'),
+                    subtitle: const Text('Manage owner and cashier PINs'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => context.push('/settings/staff'),
+                  ),
+                ),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.cloud_sync_outlined),
+                    title: const Text('Cloud sync'),
+                    subtitle: const Text('Connect this shop to another device'),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => context.push('/settings/cloud-sync'),
+                  ),
+                ),
+                const SizedBox(height: 20),
                 _sectionLabel(s.preferences, isDark),
                 const SizedBox(height: 10),
                 _buildPreferencesCard(context, ref, settings, s, isDark),
@@ -54,7 +98,12 @@ class SettingsScreen extends ConsumerWidget {
 
   // ── Header ────────────────────────────────────────────────────────────────
 
-  Widget _buildHeader(BuildContext context, AppStrings s) {
+  Widget _buildHeader(
+    BuildContext context,
+    AppStrings s,
+    SettingsState settings, {
+    required bool showBackButton,
+  }) {
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 24,
@@ -72,68 +121,117 @@ class SettingsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (Navigator.canPop(context))
+          if (showBackButton)
             Padding(
               padding: const EdgeInsets.only(bottom: 12),
               child: GestureDetector(
-                onTap: () => Navigator.of(context).pop(),
-                child: const Icon(Icons.arrow_back_ios_new_rounded,
-                    color: Colors.white, size: 20),
+                onTap: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/');
+                  }
+                },
+                child: const Icon(
+                  Icons.arrow_back_ios_new_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
             ),
           Row(
-          children: [
-          Container(
-            width: 68,
-            height: 68,
-            decoration: BoxDecoration(
-              color: Colors.white.withAlpha(38),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withAlpha(77), width: 1),
-            ),
-            child: const Icon(
-              Icons.storefront_rounded,
-              color: Colors.white,
-              size: 34,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'mPOS',
-                  style: TextStyle(
+            children: [
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(38),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withAlpha(77),
+                    width: 1,
+                  ),
+                ),
+                child: const Icon(
+                  Icons.storefront_rounded,
+                  color: Colors.white,
+                  size: 34,
+                ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Karbar',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    InkWell(
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ShopSetupScreen(),
+                        ),
+                      ),
+                      borderRadius: BorderRadius.circular(6),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              settings.shopName.isEmpty
+                                  ? s.storeProfile
+                                  : settings.shopName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: Colors.white.withAlpha(230),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            if (settings.shopPhone.isNotEmpty ||
+                                settings.shopAddress.isNotEmpty)
+                              Text(
+                                [settings.shopPhone, settings.shopAddress]
+                                    .where((value) => value.isNotEmpty)
+                                    .join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: Colors.white.withAlpha(190),
+                                  fontSize: 11,
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(38),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: IconButton(
+                  onPressed: () {},
+                  icon: const Icon(
+                    Icons.notifications_none_rounded,
                     color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  s.storeManagement,
-                  style: TextStyle(
-                    color: Colors.white.withAlpha(204),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            decoration: BoxDecoration(
-              color: Colors.white.withAlpha(38),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: IconButton(
-              onPressed: () {},
-              icon: const Icon(Icons.notifications_none_rounded,
-                  color: Colors.white),
-            ),
-          ),
-        ],
+              ),
+            ],
           ),
         ],
       ),
@@ -164,6 +262,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.inventory_2_rounded,
             label: s.inventoryLabel,
             color: const Color(0xFF059669),
+            onTap: () => context.push('/warehouse'),
           ),
         ),
         const SizedBox(width: 12),
@@ -173,6 +272,7 @@ class SettingsScreen extends ConsumerWidget {
             icon: Icons.bar_chart_rounded,
             label: s.reportsLabel,
             color: const Color(0xFF2563EB),
+            onTap: () => context.push('/reports'),
           ),
         ),
       ],
@@ -188,8 +288,9 @@ class SettingsScreen extends ConsumerWidget {
   }) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final borderCol =
-        isDark ? const Color(0xFF334155) : const Color(0xFFE5E7EB);
+    final borderCol = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFE5E7EB);
 
     return GestureDetector(
       onTap: onTap,
@@ -253,11 +354,11 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildCard(
-      BuildContext context, List<Widget> children, bool isDark) {
+  Widget _buildCard(BuildContext context, List<Widget> children, bool isDark) {
     final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
-    final borderCol =
-        isDark ? const Color(0xFF334155) : const Color(0xFFEEF0F4);
+    final borderCol = isDark
+        ? const Color(0xFF334155)
+        : const Color(0xFFEEF0F4);
     return Container(
       decoration: BoxDecoration(
         color: cardBg,
@@ -290,17 +391,18 @@ class SettingsScreen extends ConsumerWidget {
     bool isDanger = false,
     required bool isDark,
   }) {
-    final dividerCol =
-        isDark ? const Color(0xFF273040) : const Color(0xFFF3F4F6);
+    final dividerCol = isDark
+        ? const Color(0xFF273040)
+        : const Color(0xFFF3F4F6);
     final titleCol = isDanger
         ? const Color(0xFFEF4444)
         : isDark
-            ? const Color(0xFFF1F5F9)
-            : const Color(0xFF111827);
-    final subtitleCol =
-        isDark ? const Color(0xFF94A3B8) : const Color(0xFF6B7280);
-    final effectiveIconColor =
-        isDanger ? const Color(0xFFEF4444) : iconColor;
+        ? const Color(0xFFF1F5F9)
+        : const Color(0xFF111827);
+    final subtitleCol = isDark
+        ? const Color(0xFF94A3B8)
+        : const Color(0xFF6B7280);
+    final effectiveIconColor = isDanger ? const Color(0xFFEF4444) : iconColor;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -310,8 +412,7 @@ class SettingsScreen extends ConsumerWidget {
           child: InkWell(
             onTap: onTap,
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
               child: Row(
                 children: [
                   Container(
@@ -328,16 +429,20 @@ class SettingsScreen extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(title,
-                            style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w500,
-                                color: titleCol)),
+                        Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w500,
+                            color: titleCol,
+                          ),
+                        ),
                         if (subtitle != null) ...[
                           const SizedBox(height: 2),
-                          Text(subtitle,
-                              style: TextStyle(
-                                  fontSize: 12, color: subtitleCol)),
+                          Text(
+                            subtitle,
+                            style: TextStyle(fontSize: 12, color: subtitleCol),
+                          ),
                         ],
                       ],
                     ),
@@ -390,8 +495,7 @@ class SettingsScreen extends ConsumerWidget {
           scale: 0.85,
           child: Switch(
             value: settings.themeMode == ThemeMode.dark,
-            onChanged: (_) =>
-                ref.read(settingsProvider.notifier).toggleTheme(),
+            onChanged: (_) => ref.read(settingsProvider.notifier).toggleTheme(),
             activeThumbColor: const Color(0xFF7C3AED),
           ),
         ),
@@ -441,14 +545,12 @@ class SettingsScreen extends ConsumerWidget {
           scale: 0.85,
           child: Switch(
             value: settings.showTax,
-            onChanged: (v) =>
-                ref.read(settingsProvider.notifier).setShowTax(v),
+            onChanged: (v) => ref.read(settingsProvider.notifier).setShowTax(v),
             activeThumbColor: const Color(0xFF0EA5E9),
           ),
         ),
-        onTap: () => ref
-            .read(settingsProvider.notifier)
-            .setShowTax(!settings.showTax),
+        onTap: () =>
+            ref.read(settingsProvider.notifier).setShowTax(!settings.showTax),
       ),
     ], isDark);
   }
@@ -456,7 +558,11 @@ class SettingsScreen extends ConsumerWidget {
   // ── Data Management card ──────────────────────────────────────────────────
 
   Widget _buildDataCard(
-      BuildContext context, WidgetRef ref, AppStrings s, bool isDark) {
+    BuildContext context,
+    WidgetRef ref,
+    AppStrings s,
+    bool isDark,
+  ) {
     return _buildCard(context, [
       _tile(
         context: context,
@@ -468,6 +574,18 @@ class SettingsScreen extends ConsumerWidget {
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const HistoryScreen()),
+        ),
+      ),
+      _tile(
+        context: context,
+        icon: Icons.backup_rounded,
+        iconColor: const Color(0xFF2563EB),
+        title: s.backupAndRestore,
+        subtitle: s.createBackupDescription,
+        isDark: isDark,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => const BackupRestoreScreen()),
         ),
       ),
       _tile(
@@ -529,45 +647,43 @@ class SettingsScreen extends ConsumerWidget {
   ) {
     // English label always in English; Bengali label always in Bengali so
     // the user can recognise and switch even when the UI is in the other language.
-    const options = [
-      ('English', 'English'),
-      ('বাংলা', 'বাংলা'),
-    ];
+    const options = [('English', 'English'), ('বাংলা', 'বাংলা')];
 
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(s.selectLanguage),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: options
-              .map((opt) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Radio<String>(
-                      value: opt.$1,
-                      groupValue: current,
-                      onChanged: (v) {
-                        if (v != null) {
-                          ref
-                              .read(settingsProvider.notifier)
-                              .setLanguage(v);
-                          Navigator.pop(ctx);
-                        }
-                      },
-                      activeColor: const Color(0xFF2563EB),
-                    ),
-                    title: Text(opt.$2,
-                        style: const TextStyle(
-                            fontSize: 15, fontWeight: FontWeight.w500)),
-                    onTap: () {
-                      ref
-                          .read(settingsProvider.notifier)
-                          .setLanguage(opt.$1);
-                      Navigator.pop(ctx);
+              .map(
+                (opt) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Radio<String>(
+                    value: opt.$1,
+                    groupValue: current,
+                    onChanged: (v) {
+                      if (v != null) {
+                        ref.read(settingsProvider.notifier).setLanguage(v);
+                        Navigator.pop(ctx);
+                      }
                     },
-                  ))
+                    activeColor: const Color(0xFF2563EB),
+                  ),
+                  title: Text(
+                    opt.$2,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  onTap: () {
+                    ref.read(settingsProvider.notifier).setLanguage(opt.$1);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              )
               .toList(),
         ),
       ),
@@ -590,34 +706,35 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(s.selectCurrency),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: currencies
-              .map((c) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Radio<String>(
-                      value: c['symbol']!,
-                      groupValue: current,
-                      onChanged: (v) {
-                        if (v != null) {
-                          ref
-                              .read(settingsProvider.notifier)
-                              .setCurrency(c['symbol']!, c['locale']!);
-                          Navigator.pop(ctx);
-                        }
-                      },
-                      activeColor: const Color(0xFF2563EB),
-                    ),
-                    title: Text(c['label']!),
-                    onTap: () {
-                      ref
-                          .read(settingsProvider.notifier)
-                          .setCurrency(c['symbol']!, c['locale']!);
-                      Navigator.pop(ctx);
+              .map(
+                (c) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: Radio<String>(
+                    value: c['symbol']!,
+                    groupValue: current,
+                    onChanged: (v) {
+                      if (v != null) {
+                        ref
+                            .read(settingsProvider.notifier)
+                            .setCurrency(c['symbol']!, c['locale']!);
+                        Navigator.pop(ctx);
+                      }
                     },
-                  ))
+                    activeColor: const Color(0xFF2563EB),
+                  ),
+                  title: Text(c['label']!),
+                  onTap: () {
+                    ref
+                        .read(settingsProvider.notifier)
+                        .setCurrency(c['symbol']!, c['locale']!);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              )
               .toList(),
         ),
       ),
@@ -631,23 +748,21 @@ class SettingsScreen extends ConsumerWidget {
     AppStrings s,
   ) {
     final controller = TextEditingController(
-        text: current > 0 ? current.toStringAsFixed(1) : '');
+      text: current > 0 ? current.toStringAsFixed(1) : '',
+    );
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(s.setTaxRateTitle),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         content: TextField(
           controller: controller,
-          keyboardType:
-              const TextInputType.numberWithOptions(decimal: true),
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
           autofocus: true,
           decoration: InputDecoration(
             suffixText: '%',
             hintText: '0.0',
-            border:
-                OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           ),
         ),
         actions: [
@@ -656,13 +771,10 @@ class SettingsScreen extends ConsumerWidget {
             child: Text(s.cancel),
           ),
           ElevatedButton(
-            style:
-                ElevatedButton.styleFrom(minimumSize: const Size(80, 44)),
+            style: ElevatedButton.styleFrom(minimumSize: const Size(80, 44)),
             onPressed: () {
               final val = double.tryParse(controller.text) ?? 0.0;
-              ref
-                  .read(settingsProvider.notifier)
-                  .setTaxRate(val.clamp(0, 100));
+              ref.read(settingsProvider.notifier).setTaxRate(val.clamp(0, 100));
               Navigator.pop(ctx);
             },
             child: Text(s.save),
@@ -672,14 +784,12 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  void _showClearDataDialog(
-      BuildContext context, WidgetRef ref, AppStrings s) {
+  void _showClearDataDialog(BuildContext context, WidgetRef ref, AppStrings s) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(s.clearDataTitle),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         content: Text(s.clearDataBody),
         actions: [
           TextButton(
@@ -694,9 +804,9 @@ class SettingsScreen extends ConsumerWidget {
             onPressed: () {
               ref.read(salesProvider.notifier).clearSales();
               Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text(s.salesDataCleared)),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(SnackBar(content: Text(s.salesDataCleared)));
             },
             child: Text(s.clear),
           ),
@@ -710,13 +820,11 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Text(s.helpTitle),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         content: Text(s.helpBody),
         actions: [
           ElevatedButton(
-            style:
-                ElevatedButton.styleFrom(minimumSize: const Size(80, 44)),
+            style: ElevatedButton.styleFrom(minimumSize: const Size(80, 44)),
             onPressed: () => Navigator.pop(ctx),
             child: Text(s.gotIt),
           ),

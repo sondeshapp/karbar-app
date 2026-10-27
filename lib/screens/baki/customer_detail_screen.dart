@@ -17,23 +17,22 @@ class CustomerDetailScreen extends ConsumerWidget {
     final fmt = NumberFormat.currency(symbol: '৳', decimalDigits: 0);
     final customer = summary.customer;
 
-    final salesAsync =
-        ref.watch(customerBakiSalesProvider(customer.id!));
-    final paymentsAsync =
-        ref.watch(customerPaymentsProvider(customer.id!));
+    final salesAsync = ref.watch(customerBakiSalesProvider(customer.id!));
+    final paymentsAsync = ref.watch(customerPaymentsProvider(customer.id!));
 
     // Re-compute outstanding from fresh provider data
-    final totalBakiFromSales = salesAsync.valueOrNull
-            ?.fold(0.0, (sum, s) => sum + s.totalAmount) ??
+    final totalBakiFromSales =
+        salesAsync.valueOrNull?.fold(0.0, (sum, s) => sum + s.bakiAmount) ??
         summary.totalBaki;
-    final totalPaidFromPayments = paymentsAsync.valueOrNull
-            ?.fold(0.0, (sum, p) => sum + p.amount) ??
+    final totalPaidFromPayments =
+        paymentsAsync.valueOrNull?.fold(0.0, (sum, p) => sum + p.amount) ??
         summary.totalPaid;
     final outstanding = totalBakiFromSales - totalPaidFromPayments;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF1F5F9),
       body: CustomScrollView(
         slivers: [
           // ── Header ──────────────────────────────────────────────────
@@ -65,9 +64,10 @@ class CustomerDetailScreen extends ConsumerWidget {
                       child: GestureDetector(
                         onTap: () => Navigator.of(context).pop(),
                         child: const Icon(
-                            Icons.arrow_back_ios_new_rounded,
-                            color: Colors.white,
-                            size: 20),
+                          Icons.arrow_back_ios_new_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                   Row(
@@ -109,8 +109,9 @@ class CustomerDetailScreen extends ConsumerWidget {
                               Text(
                                 customer.phone,
                                 style: TextStyle(
-                                    color: Colors.white.withAlpha(200),
-                                    fontSize: 14),
+                                  color: Colors.white.withAlpha(200),
+                                  fontSize: 14,
+                                ),
                               ),
                           ],
                         ),
@@ -121,16 +122,19 @@ class CustomerDetailScreen extends ConsumerWidget {
                   Row(
                     children: [
                       _StatChip(
-                          label: 'Outstanding',
-                          value: fmt.format(outstanding)),
+                        label: 'Outstanding',
+                        value: fmt.format(outstanding),
+                      ),
                       const SizedBox(width: 10),
                       _StatChip(
-                          label: 'Total baki',
-                          value: fmt.format(totalBakiFromSales)),
+                        label: 'Total baki',
+                        value: fmt.format(totalBakiFromSales),
+                      ),
                       const SizedBox(width: 10),
                       _StatChip(
-                          label: 'Total paid',
-                          value: fmt.format(totalPaidFromPayments)),
+                        label: 'Total paid',
+                        value: fmt.format(totalPaidFromPayments),
+                      ),
                     ],
                   ),
                 ],
@@ -144,42 +148,44 @@ class CustomerDetailScreen extends ConsumerWidget {
               delegate: SliverChildListDelegate([
                 // Baki sales
                 _SectionHeader(
-                    label: 'Baki Sales',
-                    icon: Icons.receipt_long_rounded,
-                    isDark: isDark),
+                  label: 'Baki Sales',
+                  icon: Icons.receipt_long_rounded,
+                  isDark: isDark,
+                ),
                 const SizedBox(height: 10),
                 salesAsync.when(
-                  loading: () => const Center(
-                      child: CircularProgressIndicator()),
-                  error: (e, _) =>
-                      Text('Error: $e',
-                          style:
-                              const TextStyle(color: Colors.red)),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Text(
+                    'Error: $e',
+                    style: const TextStyle(color: Colors.red),
+                  ),
                   data: (sales) => sales.isEmpty
-                      ? _EmptyCard(
-                          label: 'No baki sales yet', isDark: isDark)
+                      ? _EmptyCard(label: 'No baki sales yet', isDark: isDark)
                       : _Card(
                           isDark: isDark,
                           child: Column(
                             children: sales
                                 .asMap()
                                 .entries
-                                .map((e) => Column(
-                                      children: [
-                                        if (e.key > 0)
-                                          Divider(
-                                              height: 1,
-                                              color: isDark
-                                                  ? Colors.white
-                                                      .withAlpha(10)
-                                                  : Colors.black
-                                                      .withAlpha(8)),
-                                        _SaleTile(
-                                            sale: e.value,
-                                            fmt: fmt,
-                                            isDark: isDark),
-                                      ],
-                                    ))
+                                .map(
+                                  (e) => Column(
+                                    children: [
+                                      if (e.key > 0)
+                                        Divider(
+                                          height: 1,
+                                          color: isDark
+                                              ? Colors.white.withAlpha(10)
+                                              : Colors.black.withAlpha(8),
+                                        ),
+                                      _SaleTile(
+                                        sale: e.value,
+                                        fmt: fmt,
+                                        isDark: isDark,
+                                      ),
+                                    ],
+                                  ),
+                                )
                                 .toList(),
                           ),
                         ),
@@ -187,43 +193,47 @@ class CustomerDetailScreen extends ConsumerWidget {
                 const SizedBox(height: 20),
                 // Payments
                 _SectionHeader(
-                    label: 'Payments received',
-                    icon: Icons.payments_rounded,
-                    isDark: isDark),
+                  label: 'Payments received',
+                  icon: Icons.payments_rounded,
+                  isDark: isDark,
+                ),
                 const SizedBox(height: 10),
                 paymentsAsync.when(
-                  loading: () => const Center(
-                      child: CircularProgressIndicator()),
-                  error: (e, _) =>
-                      Text('Error: $e',
-                          style:
-                              const TextStyle(color: Colors.red)),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Text(
+                    'Error: $e',
+                    style: const TextStyle(color: Colors.red),
+                  ),
                   data: (payments) => payments.isEmpty
                       ? _EmptyCard(
                           label: 'No payments recorded yet',
-                          isDark: isDark)
+                          isDark: isDark,
+                        )
                       : _Card(
                           isDark: isDark,
                           child: Column(
                             children: payments
                                 .asMap()
                                 .entries
-                                .map((e) => Column(
-                                      children: [
-                                        if (e.key > 0)
-                                          Divider(
-                                              height: 1,
-                                              color: isDark
-                                                  ? Colors.white
-                                                      .withAlpha(10)
-                                                  : Colors.black
-                                                      .withAlpha(8)),
-                                        _PaymentTile(
-                                            payment: e.value,
-                                            fmt: fmt,
-                                            isDark: isDark),
-                                      ],
-                                    ))
+                                .map(
+                                  (e) => Column(
+                                    children: [
+                                      if (e.key > 0)
+                                        Divider(
+                                          height: 1,
+                                          color: isDark
+                                              ? Colors.white.withAlpha(10)
+                                              : Colors.black.withAlpha(8),
+                                        ),
+                                      _PaymentTile(
+                                        payment: e.value,
+                                        fmt: fmt,
+                                        isDark: isDark,
+                                      ),
+                                    ],
+                                  ),
+                                )
                                 .toList(),
                           ),
                         ),
@@ -237,7 +247,12 @@ class CustomerDetailScreen extends ConsumerWidget {
       floatingActionButton: outstanding > 0
           ? FloatingActionButton.extended(
               onPressed: () => _showRecordPaymentSheet(
-                  context, ref, customer.id!, outstanding, fmt),
+                context,
+                ref,
+                customer.id!,
+                outstanding,
+                fmt,
+              ),
               icon: const Icon(Icons.add_rounded),
               label: const Text('Record Payment'),
               backgroundColor: const Color(0xFF059669),
@@ -259,7 +274,8 @@ class CustomerDetailScreen extends ConsumerWidget {
     NumberFormat fmt,
   ) {
     final amountCtrl = TextEditingController(
-        text: outstanding.toStringAsFixed(0));
+      text: outstanding.toStringAsFixed(0),
+    );
     final noteCtrl = TextEditingController();
 
     showModalBottomSheet(
@@ -267,13 +283,11 @@ class CustomerDetailScreen extends ConsumerWidget {
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Padding(
-        padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: Container(
           decoration: const BoxDecoration(
             color: Colors.white,
-            borderRadius:
-                BorderRadius.vertical(top: Radius.circular(24)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
           child: Column(
@@ -294,18 +308,20 @@ class CustomerDetailScreen extends ConsumerWidget {
               Text(
                 'Record Payment',
                 style: const TextStyle(
-                    fontSize: 17, fontWeight: FontWeight.w700),
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
               Text(
                 'Outstanding: ${fmt.format(outstanding)}',
-                style: const TextStyle(
-                    color: Color(0xFF94A3B8), fontSize: 13),
+                style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: amountCtrl,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 decoration: const InputDecoration(
                   labelText: 'Amount received',
                   prefixText: '৳ ',
@@ -328,11 +344,11 @@ class CustomerDetailScreen extends ConsumerWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF059669),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14)),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
                   ),
                   onPressed: () async {
-                    final amt =
-                        double.tryParse(amountCtrl.text.trim());
+                    final amt = double.tryParse(amountCtrl.text.trim());
                     if (amt == null || amt <= 0) return;
                     await DatabaseHelper().insertBakiPayment(
                       BakiPayment(
@@ -348,9 +364,10 @@ class CustomerDetailScreen extends ConsumerWidget {
                   child: const Text(
                     'Save Payment',
                     style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white),
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
@@ -380,14 +397,21 @@ class _StatChip extends StatelessWidget {
         ),
         child: Column(
           children: [
-            Text(value,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 14)),
-            Text(label,
-                style: TextStyle(
-                    color: Colors.white.withAlpha(180), fontSize: 10)),
+            Text(
+              value,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w800,
+                fontSize: 14,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white.withAlpha(180),
+                fontSize: 10,
+              ),
+            ),
           ],
         ),
       ),
@@ -399,18 +423,21 @@ class _SectionHeader extends StatelessWidget {
   final String label;
   final IconData icon;
   final bool isDark;
-  const _SectionHeader(
-      {required this.label, required this.icon, required this.isDark});
+  const _SectionHeader({
+    required this.label,
+    required this.icon,
+    required this.isDark,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon,
-            size: 16,
-            color: isDark
-                ? Colors.white70
-                : const Color(0xFF64748B)),
+        Icon(
+          icon,
+          size: 16,
+          color: isDark ? Colors.white70 : const Color(0xFF64748B),
+        ),
         const SizedBox(width: 6),
         Text(
           label,
@@ -461,8 +488,7 @@ class _EmptyCard extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Center(
-          child: Text(label,
-              style: const TextStyle(color: Color(0xFF94A3B8))),
+          child: Text(label, style: const TextStyle(color: Color(0xFF94A3B8))),
         ),
       ),
     );
@@ -473,13 +499,15 @@ class _SaleTile extends StatelessWidget {
   final Sale sale;
   final NumberFormat fmt;
   final bool isDark;
-  const _SaleTile(
-      {required this.sale, required this.fmt, required this.isDark});
+  const _SaleTile({
+    required this.sale,
+    required this.fmt,
+    required this.isDark,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final dateStr =
-        DateFormat('d MMM, h:mm a').format(sale.createdAt);
+    final dateStr = DateFormat('d MMM, h:mm a').format(sale.createdAt);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
@@ -491,8 +519,11 @@ class _SaleTile extends StatelessWidget {
               color: const Color(0xFFF59E0B).withAlpha(22),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.receipt_rounded,
-                color: Color(0xFFD97706), size: 18),
+            child: const Icon(
+              Icons.receipt_rounded,
+              color: Color(0xFFD97706),
+              size: 18,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -504,18 +535,21 @@ class _SaleTile extends StatelessWidget {
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
-                    color:
-                        isDark ? Colors.white : const Color(0xFF0F172A),
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
                   ),
                 ),
-                Text(dateStr,
-                    style: const TextStyle(
-                        fontSize: 12, color: Color(0xFF94A3B8))),
+                Text(
+                  dateStr,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
               ],
             ),
           ),
           Text(
-            fmt.format(sale.totalAmount),
+            fmt.format(sale.bakiAmount),
             style: const TextStyle(
               fontWeight: FontWeight.w700,
               fontSize: 14,
@@ -532,10 +566,11 @@ class _PaymentTile extends StatelessWidget {
   final BakiPayment payment;
   final NumberFormat fmt;
   final bool isDark;
-  const _PaymentTile(
-      {required this.payment,
-      required this.fmt,
-      required this.isDark});
+  const _PaymentTile({
+    required this.payment,
+    required this.fmt,
+    required this.isDark,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -551,8 +586,11 @@ class _PaymentTile extends StatelessWidget {
               color: const Color(0xFF059669).withAlpha(22),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(Icons.payments_rounded,
-                color: Color(0xFF059669), size: 18),
+            child: const Icon(
+              Icons.payments_rounded,
+              color: Color(0xFF059669),
+              size: 18,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -560,19 +598,20 @@ class _PaymentTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  payment.note.isNotEmpty
-                      ? payment.note
-                      : 'Payment received',
+                  payment.note.isNotEmpty ? payment.note : 'Payment received',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
-                    color:
-                        isDark ? Colors.white : const Color(0xFF0F172A),
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
                   ),
                 ),
-                Text(dateStr,
-                    style: const TextStyle(
-                        fontSize: 12, color: Color(0xFF94A3B8))),
+                Text(
+                  dateStr,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF94A3B8),
+                  ),
+                ),
               ],
             ),
           ),

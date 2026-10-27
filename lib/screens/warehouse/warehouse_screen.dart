@@ -38,7 +38,9 @@ class _WarehouseScreenState extends ConsumerState<WarehouseScreen> {
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
-                content: Text('${product.name} found — update stock to restock'),
+                content: Text(
+                  '${product.name} found — update stock to restock',
+                ),
                 duration: const Duration(seconds: 2),
                 behavior: SnackBarBehavior.floating,
               ),
@@ -73,6 +75,11 @@ class _WarehouseScreenState extends ConsumerState<WarehouseScreen> {
         title: Text(s.warehouse),
         actions: [
           IconButton(
+            icon: const Icon(Icons.local_shipping_outlined),
+            tooltip: 'Suppliers & purchases',
+            onPressed: () => context.push('/purchases'),
+          ),
+          IconButton(
             icon: const Icon(Icons.qr_code_scanner_rounded),
             tooltip: 'Scan to add / restock',
             onPressed: _scanToAddOrRestock,
@@ -95,7 +102,8 @@ class _WarehouseScreenState extends ConsumerState<WarehouseScreen> {
           ? EmptyState(message: s.noProductsYet)
           : ListView.builder(
               padding: EdgeInsets.only(
-                  bottom: MediaQuery.of(context).padding.bottom + 80),
+                bottom: MediaQuery.of(context).padding.bottom + 80,
+              ),
               itemCount: products.length,
               itemBuilder: (context, index) =>
                   ProductTile(product: products[index]),
@@ -103,17 +111,20 @@ class _WarehouseScreenState extends ConsumerState<WarehouseScreen> {
     );
   }
 
-  void _showStockInSheet(BuildContext context, WidgetRef ref, List<Product> products) {
+  void _showStockInSheet(
+    BuildContext context,
+    WidgetRef ref,
+    List<Product> products,
+  ) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _StockInSheet(
         products: ref.read(warehouseProvider),
-        onConfirm: (variantId, qty, costPrice) =>
-            ref.read(warehouseProvider.notifier).stockIn(
-              variantId, qty, costPrice: costPrice,
-            ),
+        onConfirm: (variantId, qty, costPrice) => ref
+            .read(warehouseProvider.notifier)
+            .stockIn(variantId, qty, costPrice: costPrice),
       ),
     );
   }
@@ -123,7 +134,8 @@ class _WarehouseScreenState extends ConsumerState<WarehouseScreen> {
 
 class _StockInSheet extends StatefulWidget {
   final List<Product> products;
-  final Future<void> Function(int variantId, int qty, double costPrice) onConfirm;
+  final Future<void> Function(int variantId, double qty, double costPrice)
+  onConfirm;
 
   const _StockInSheet({required this.products, required this.onConfirm});
 
@@ -162,7 +174,8 @@ class _StockInSheetState extends State<_StockInSheet> {
         children: [
           Center(
             child: Container(
-              width: 36, height: 4,
+              width: 36,
+              height: 4,
               margin: const EdgeInsets.only(bottom: 16),
               decoration: BoxDecoration(
                 color: Colors.grey.shade300,
@@ -170,8 +183,10 @@ class _StockInSheetState extends State<_StockInSheet> {
               ),
             ),
           ),
-          const Text('Stock In',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
+          const Text(
+            'Stock In',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 16),
           // Product picker
           DropdownButtonFormField<int>(
@@ -181,10 +196,18 @@ class _StockInSheetState extends State<_StockInSheet> {
               border: OutlineInputBorder(),
               isDense: true,
             ),
-            items: widget.products.asMap().entries.map((e) =>
-              DropdownMenuItem(value: e.key, child: Text(e.value.name)),
-            ).toList(),
-            onChanged: (v) => setState(() { _productIdx = v!; _variantIdx = 0; }),
+            items: widget.products
+                .asMap()
+                .entries
+                .map(
+                  (e) =>
+                      DropdownMenuItem(value: e.key, child: Text(e.value.name)),
+                )
+                .toList(),
+            onChanged: (v) => setState(() {
+              _productIdx = v!;
+              _variantIdx = 0;
+            }),
           ),
           if (_product.variants.length > 1) ...[
             const SizedBox(height: 12),
@@ -195,38 +218,51 @@ class _StockInSheetState extends State<_StockInSheet> {
                 border: OutlineInputBorder(),
                 isDense: true,
               ),
-              items: _product.variants.asMap().entries.map((e) =>
-                DropdownMenuItem(value: e.key, child: Text(e.value.name)),
-              ).toList(),
+              items: _product.variants
+                  .asMap()
+                  .entries
+                  .map(
+                    (e) => DropdownMenuItem(
+                      value: e.key,
+                      child: Text(e.value.name),
+                    ),
+                  )
+                  .toList(),
               onChanged: (v) => setState(() => _variantIdx = v!),
             ),
           ],
           const SizedBox(height: 12),
-          Row(children: [
-            Expanded(
-              child: TextField(
-                controller: _qtyCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Quantity *',
-                  border: OutlineInputBorder(),
-                  isDense: true,
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _qtyCtrl,
+                  keyboardType: TextInputType.numberWithOptions(
+                    decimal: _product.quantityPrecision > 0,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Quantity *',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: TextField(
-                controller: _costCtrl,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Cost price (opt.)',
-                  border: OutlineInputBorder(),
-                  isDense: true,
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _costCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: const InputDecoration(
+                    labelText: 'Cost price (opt.)',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
                 ),
               ),
-            ),
-          ]),
+            ],
+          ),
           const SizedBox(height: 20),
           SizedBox(
             width: double.infinity,
@@ -234,23 +270,39 @@ class _StockInSheetState extends State<_StockInSheet> {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF059669),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
-              onPressed: _loading ? null : () async {
-                final qty = int.tryParse(_qtyCtrl.text.trim()) ?? 0;
-                if (qty <= 0) return;
-                final variant = _product.variants[_variantIdx];
-                if (variant.id == null) return;
-                final cost = double.tryParse(_costCtrl.text.trim()) ?? 0;
-                setState(() => _loading = true);
-                await widget.onConfirm(variant.id!, qty, cost);
-                if (!mounted) return;
-                Navigator.pop(this.context);
-              },
+              onPressed: _loading
+                  ? null
+                  : () async {
+                      final qty = double.tryParse(_qtyCtrl.text.trim()) ?? 0;
+                      if (!qty.isFinite || qty <= 0) return;
+                      if (_product.quantityPrecision == 0 && qty % 1 != 0) {
+                        return;
+                      }
+                      final variant = _product.variants[_variantIdx];
+                      if (variant.id == null) return;
+                      final cost = double.tryParse(_costCtrl.text.trim()) ?? 0;
+                      setState(() => _loading = true);
+                      await widget.onConfirm(variant.id!, qty, cost);
+                      if (!mounted) return;
+                      Navigator.pop(this.context);
+                    },
               child: _loading
-                ? const CircularProgressIndicator(color: Colors.white, strokeWidth: 2)
-                : const Text('Confirm Stock In',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+                  ? const CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    )
+                  : const Text(
+                      'Confirm Stock In',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
             ),
           ),
         ],

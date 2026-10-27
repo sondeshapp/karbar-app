@@ -26,7 +26,11 @@ class WarehouseNotifier extends StateNotifier<List<Product>> {
     state = state.where((p) => p.id != id).toList();
   }
 
-  Future<void> stockIn(int variantId, int quantity, {double costPrice = 0}) async {
+  Future<void> stockIn(
+    int variantId,
+    double quantity, {
+    double costPrice = 0,
+  }) async {
     await _db.stockIn(variantId, quantity, costPrice: costPrice);
     await loadProducts();
   }
@@ -34,5 +38,5 @@ class WarehouseNotifier extends StateNotifier<List<Product>> {
 
 final warehouseProvider =
     StateNotifierProvider<WarehouseNotifier, List<Product>>((ref) {
-  return WarehouseNotifier(DatabaseHelper());
-});
+      return WarehouseNotifier(DatabaseHelper());
+    });

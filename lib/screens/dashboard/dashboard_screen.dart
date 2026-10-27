@@ -27,8 +27,9 @@ class DashboardScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF0F172A) : const Color(0xFFF8FAFC),
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF8FAFC),
       appBar: PreferredSize(
         preferredSize: const Size.fromHeight(kToolbarHeight),
         child: ClipRect(
@@ -54,9 +55,7 @@ class DashboardScreen extends ConsumerWidget {
                   IconButton(
                     icon: Icon(
                       Icons.refresh_rounded,
-                      color: isDark
-                          ? Colors.white70
-                          : const Color(0xFF64748B),
+                      color: isDark ? Colors.white70 : const Color(0xFF64748B),
                     ),
                     onPressed: () => ref.invalidate(dashboardProvider),
                   ),
@@ -83,14 +82,20 @@ class _Body extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
-    final cf = NumberFormat.currency(locale: settings.currencyLocale, symbol: settings.currencySymbol);
+    final cf = NumberFormat.currency(
+      locale: settings.currencyLocale,
+      symbol: settings.currencySymbol,
+    );
 
     return RefreshIndicator(
       onRefresh: () async {},
       child: ListView(
         padding: EdgeInsets.fromLTRB(
-            kPadding, 8, kPadding,
-            MediaQuery.of(context).padding.bottom + 16),
+          kPadding,
+          8,
+          kPadding,
+          MediaQuery.of(context).padding.bottom + 16,
+        ),
         children: [
           // ── Revenue cards ───────────────────────────────────────
           Row(
@@ -291,24 +296,31 @@ class _StatCard extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(label,
-                          style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w500)),
+                      Text(
+                        label,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
                       Icon(icon, color: Colors.white54, size: 18),
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(value,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold)),
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                   const SizedBox(height: 2),
-                  Text(sub,
-                      style: const TextStyle(
-                          color: Colors.white70, fontSize: 11)),
+                  Text(
+                    sub,
+                    style: const TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
                 ],
               ),
             ),
@@ -352,16 +364,21 @@ class _MiniCard extends StatelessWidget {
           children: [
             Icon(icon, color: color, size: 22),
             const SizedBox(height: 6),
-            Text(value,
-                style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    color: color)),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 11,
-                    color:
-                        isDark ? Colors.white54 : Colors.grey)),
+            Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 18,
+                color: color,
+              ),
+            ),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                color: isDark ? Colors.white54 : Colors.grey,
+              ),
+            ),
           ],
         ),
       ),
@@ -376,8 +393,11 @@ class _SectionCard extends StatelessWidget {
   final Widget child;
   final Color? titleColor;
 
-  const _SectionCard(
-      {required this.title, required this.child, this.titleColor});
+  const _SectionCard({
+    required this.title,
+    required this.child,
+    this.titleColor,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -429,7 +449,11 @@ class _RevenueChart extends StatelessWidget {
   final List<DailyRevenue> days;
   final String noDataLabel;
   final String currencySymbol;
-  const _RevenueChart({required this.days, required this.noDataLabel, required this.currencySymbol});
+  const _RevenueChart({
+    required this.days,
+    required this.noDataLabel,
+    required this.currencySymbol,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -438,13 +462,15 @@ class _RevenueChart extends StatelessWidget {
     if (days.isEmpty) {
       return Padding(
         padding: const EdgeInsets.all(16),
-        child: Text(noDataLabel,
-            style: const TextStyle(color: Colors.grey)),
+        child: Text(noDataLabel, style: const TextStyle(color: Colors.grey)),
       );
     }
 
     final maxAmt = days.map((d) => d.amount).reduce(max);
-    final cf = NumberFormat.compactCurrency(symbol: currencySymbol, decimalDigits: 0);
+    final cf = NumberFormat.compactCurrency(
+      symbol: currencySymbol,
+      decimalDigits: 0,
+    );
     final today = DateTime.now();
 
     return Padding(
@@ -455,17 +481,17 @@ class _RevenueChart extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: days.map((day) {
-            final isToday = day.date.day == today.day &&
+            final isToday =
+                day.date.day == today.day &&
                 day.date.month == today.month &&
                 day.date.year == today.year;
-            final ratio =
-                maxAmt > 0 ? (day.amount / maxAmt).clamp(0.0, 1.0) : 0.0;
+            final ratio = maxAmt > 0
+                ? (day.amount / maxAmt).clamp(0.0, 1.0)
+                : 0.0;
             final barH = (80 * ratio).clamp(2.0, 80.0);
             final barColor = isToday
                 ? kPrimary
-                : (isDark
-                    ? const Color(0xFF60A5FA)
-                    : const Color(0xFF93C5FD));
+                : (isDark ? const Color(0xFF60A5FA) : const Color(0xFF93C5FD));
 
             return Column(
               mainAxisAlignment: MainAxisAlignment.end,
@@ -482,7 +508,9 @@ class _RevenueChart extends StatelessWidget {
                 if (day.salesCount > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 4, vertical: 1),
+                      horizontal: 4,
+                      vertical: 1,
+                    ),
                     decoration: BoxDecoration(
                       color: barColor.withAlpha(isDark ? 55 : 30),
                       borderRadius: BorderRadius.circular(4),
@@ -490,10 +518,11 @@ class _RevenueChart extends StatelessWidget {
                     child: Text(
                       '×${day.salesCount}',
                       style: TextStyle(
-                          fontSize: 8,
-                          color: isToday
-                              ? kPrimary
-                              : (isDark ? Colors.white54 : Colors.grey)),
+                        fontSize: 8,
+                        color: isToday
+                            ? kPrimary
+                            : (isDark ? Colors.white54 : Colors.grey),
+                      ),
                     ),
                   ),
                 const SizedBox(height: 2),
@@ -505,7 +534,8 @@ class _RevenueChart extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: barColor,
                     borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(6)),
+                      top: Radius.circular(6),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -513,8 +543,7 @@ class _RevenueChart extends StatelessWidget {
                   DateFormat('E').format(day.date),
                   style: TextStyle(
                     fontSize: 10,
-                    fontWeight:
-                        isToday ? FontWeight.bold : FontWeight.normal,
+                    fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
                     color: isToday ? kPrimary : Colors.grey,
                   ),
                 ),
@@ -532,7 +561,7 @@ class _RevenueChart extends StatelessWidget {
 class _BestSellerRow extends StatelessWidget {
   final int rank;
   final BestSellerItem item;
-  final int maxQty;
+  final double maxQty;
   final AppStrings s;
   final NumberFormat cf;
 
@@ -554,10 +583,10 @@ class _BestSellerRow extends StatelessWidget {
     final rankColor = rank == 1
         ? const Color(0xFFF59E0B)
         : rank == 2
-            ? const Color(0xFF6B7280)
-            : rank == 3
-                ? const Color(0xFFCD7F32)
-                : kPrimary.withAlpha(160);
+        ? const Color(0xFF6B7280)
+        : rank == 3
+        ? const Color(0xFFCD7F32)
+        : kPrimary.withAlpha(160);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -577,9 +606,10 @@ class _BestSellerRow extends StatelessWidget {
                   child: Text(
                     '$rank',
                     style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold),
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
@@ -590,7 +620,9 @@ class _BestSellerRow extends StatelessWidget {
                       ? '${item.productName} · ${item.variantName}'
                       : item.productName,
                   style: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 13),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -601,14 +633,14 @@ class _BestSellerRow extends StatelessWidget {
                   Text(
                     s.soldText(item.quantitySold),
                     style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: kPrimary),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: kPrimary,
+                    ),
                   ),
                   Text(
                     cf.format(item.revenue),
-                    style: const TextStyle(
-                        fontSize: 11, color: Colors.grey),
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
                   ),
                 ],
               ),
@@ -642,8 +674,7 @@ class _LowStockRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isOut = product.totalStock == 0;
-    final color =
-        isOut ? const Color(0xFFEF4444) : const Color(0xFFF59E0B);
+    final color = isOut ? const Color(0xFFEF4444) : const Color(0xFFF59E0B);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -652,27 +683,30 @@ class _LowStockRow extends StatelessWidget {
           Container(
             width: 8,
             height: 8,
-            decoration:
-                BoxDecoration(color: color, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(product.name,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(
+                  product.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
                 if (product.category.isNotEmpty)
-                  Text(product.category,
-                      style: const TextStyle(
-                          fontSize: 11, color: Colors.grey)),
+                  Text(
+                    product.category,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
               ],
             ),
           ),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: color.withAlpha(20),
               border: Border.all(color: color.withAlpha(80)),
@@ -683,9 +717,10 @@ class _LowStockRow extends StatelessWidget {
                   ? s.outOfStock
                   : s.unitLeftText(product.totalStock, product.unit),
               style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.bold,
-                  color: color),
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: color,
+              ),
             ),
           ),
         ],

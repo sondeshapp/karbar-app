@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'core/theme.dart';
@@ -10,46 +11,74 @@ import 'screens/pos/pos_screen.dart';
 import 'screens/warehouse/warehouse_screen.dart';
 import 'screens/warehouse/product_form_screen.dart';
 import 'screens/warehouse/inventory_scanner_screen.dart';
+import 'screens/purchases/supplier_purchase_screen.dart';
 import 'screens/pos/scanner_screen.dart';
 import 'screens/pos/cart_screen.dart';
 import 'screens/receipt/receipt_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
+import 'screens/reports/reports_screen.dart';
+import 'screens/reports/daily_cash_close_screen.dart';
 import 'screens/settings/settings_screen.dart';
+import 'screens/settings/shop_setup_screen.dart';
 import 'screens/history/history_screen.dart';
 import 'screens/baki/baki_screen.dart';
 import 'screens/baki/customer_detail_screen.dart';
 import 'db/database_helper.dart';
+import 'providers/staff_provider.dart';
+import 'screens/settings/staff_gate_screen.dart';
+import 'screens/settings/staff_management_screen.dart';
+import 'screens/settings/cloud_sync_screen.dart';
+import 'screens/onboarding/onboarding_welcome_screen.dart';
 
 final _router = GoRouter(
   routes: [
-    GoRoute(
-      path: '/',
-      builder: (context, state) => const HomeScreen(),
-    ),
-    GoRoute(
-      path: '/pos',
-      builder: (context, state) => const PosScreen(),
-    ),
+    GoRoute(path: '/', builder: (context, state) => const AppEntryScreen()),
+    GoRoute(path: '/pos', builder: (context, state) => const PosScreen()),
     GoRoute(
       path: '/warehouse',
       builder: (context, state) => const WarehouseScreen(),
+    ),
+    GoRoute(
+      path: '/purchases',
+      builder: (context, state) => const SupplierPurchaseScreen(),
     ),
     GoRoute(
       path: '/dashboard',
       builder: (context, state) => const DashboardScreen(),
     ),
     GoRoute(
+      path: '/reports',
+      builder: (context, state) => const ReportsScreen(),
+    ),
+    GoRoute(
+      path: '/cash-close',
+      builder: (context, state) => const DailyCashCloseScreen(),
+    ),
+    GoRoute(
       path: '/settings',
-      builder: (context, state) => const SettingsScreen(),
+      builder: (context, state) => const SettingsScreen(showBackButton: true),
+    ),
+    GoRoute(
+      path: '/settings/shop-profile',
+      builder: (context, state) => const ShopSetupScreen(),
+    ),
+    GoRoute(
+      path: '/onboarding/setup-shop',
+      builder: (context, state) => const ShopSetupScreen(firstRun: true),
+    ),
+    GoRoute(
+      path: '/settings/staff',
+      builder: (context, state) => const StaffManagementScreen(),
+    ),
+    GoRoute(
+      path: '/settings/cloud-sync',
+      builder: (context, state) => const CloudSyncScreen(),
     ),
     GoRoute(
       path: '/history',
       builder: (context, state) => const HistoryScreen(),
     ),
-    GoRoute(
-      path: '/baki',
-      builder: (context, state) => const BakiScreen(),
-    ),
+    GoRoute(path: '/baki', builder: (context, state) => const BakiScreen()),
     GoRoute(
       path: '/baki/customer',
       builder: (context, state) {
@@ -66,8 +95,7 @@ final _router = GoRouter(
       builder: (context, state) {
         // extra may be a String (barcode pre-fill from scan) or null (manual)
         final initialBarcode = state.extra as String?;
-        return ProductFormScreen(
-            product: null, initialBarcode: initialBarcode);
+        return ProductFormScreen(product: null, initialBarcode: initialBarcode);
       },
     ),
     GoRoute(
@@ -81,15 +109,15 @@ final _router = GoRouter(
       path: '/pos/scanner',
       builder: (context, state) => const ScannerScreen(),
     ),
-    GoRoute(
-      path: '/cart',
-      builder: (context, state) => const CartScreen(),
-    ),
+    GoRoute(path: '/cart', builder: (context, state) => const CartScreen()),
     GoRoute(
       path: '/receipt',
       builder: (context, state) {
         final sale = state.extra as Sale;
-        return ReceiptScreen(sale: sale);
+        return ReceiptScreen(
+          sale: sale,
+          returnToHistory: state.uri.queryParameters['history'] == '1',
+        );
       },
     ),
   ],
@@ -102,12 +130,32 @@ class MyApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
     return MaterialApp.router(
-      title: 'mPOS',
+      title: 'Karbar',
+      locale: settings.language == 'বাংলা'
+          ? const Locale('bn')
+          : const Locale('en', 'US'),
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
+      supportedLocales: const [Locale('en', 'US'), Locale('bn')],
       theme: appTheme,
       darkTheme: appDarkTheme,
       themeMode: settings.themeMode,
       routerConfig: _router,
       debugShowCheckedModeBanner: false,
     );
+  }
+}
+
+class AppEntryScreen extends ConsumerWidget {
+  const AppEntryScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final staff = ref.watch(activeStaffProvider);
+    if (!settings.setupComplete) {
+      return const OnboardingWelcomeScreen();
+    }
+    if (staff == null) return const StaffGateScreen();
+    return const HomeScreen();
   }
 }

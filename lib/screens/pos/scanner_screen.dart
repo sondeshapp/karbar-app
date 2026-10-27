@@ -10,13 +10,14 @@ import '../../models/product_variant.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/warehouse_provider.dart';
 import '../../core/constants.dart';
+import '../../core/quantity_format.dart';
 
 // ── Session item ──────────────────────────────────────────────────────────────
 
 class _ScanItem {
   final Product product;
   final ProductVariant variant;
-  final int quantity;
+  final double quantity;
 
   const _ScanItem({
     required this.product,
@@ -24,11 +25,11 @@ class _ScanItem {
     this.quantity = 1,
   });
 
-  _ScanItem copyWith({int? quantity}) => _ScanItem(
-        product: product,
-        variant: variant,
-        quantity: quantity ?? this.quantity,
-      );
+  _ScanItem copyWith({double? quantity}) => _ScanItem(
+    product: product,
+    variant: variant,
+    quantity: quantity ?? this.quantity,
+  );
 }
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -86,7 +87,11 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
             if (idx >= 0) {
               _items = [
                 ..._items.take(idx),
-                _items[idx].copyWith(quantity: _items[idx].quantity + 1),
+                _items[idx].copyWith(
+                  quantity:
+                      _items[idx].quantity +
+                      quantityStep(_items[idx].product.quantityPrecision),
+                ),
                 ..._items.skip(idx + 1),
               ];
             } else {
@@ -132,14 +137,15 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
   }
 
   void _decrementItem(int idx) {
-    if (_items[idx].quantity <= 1) {
+    final step = quantityStep(_items[idx].product.quantityPrecision);
+    if (_items[idx].quantity <= step) {
       _removeItem(idx);
       return;
     }
     setState(() {
       _items = [
         ..._items.take(idx),
-        _items[idx].copyWith(quantity: _items[idx].quantity - 1),
+        _items[idx].copyWith(quantity: _items[idx].quantity - step),
         ..._items.skip(idx + 1),
       ];
     });
@@ -155,9 +161,9 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
 
   void _addToCart() {
     for (final item in _items) {
-      for (int i = 0; i < item.quantity; i++) {
-        ref.read(cartProvider.notifier).addItem(item.product, item.variant);
-      }
+      ref
+          .read(cartProvider.notifier)
+          .setScannedQuantity(item.product, item.variant, item.quantity);
     }
     context.pop();
   }
@@ -165,9 +171,11 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
   @override
   Widget build(BuildContext context) {
     final cf = NumberFormat.currency(locale: 'en_US', symbol: '\$');
-    final totalQty = _items.fold(0, (s, i) => s + i.quantity);
-    final totalAmt =
-        _items.fold(0.0, (s, i) => s + i.variant.price * i.quantity);
+    final totalQty = _items.fold(0.0, (s, i) => s + i.quantity);
+    final totalAmt = _items.fold(
+      0.0,
+      (s, i) => s + i.variant.price * i.quantity,
+    );
 
     return Scaffold(
       backgroundColor: Colors.black,
@@ -207,18 +215,23 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
               opacity: _scanSuccess ? 0.0 : 1.0,
               duration: const Duration(milliseconds: 250),
               child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.black54,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  _cooldown ? 'Ready in a moment…' : 'Align barcode inside the frame',
+                  _cooldown
+                      ? 'Ready in a moment…'
+                      : 'Align barcode inside the frame',
                   style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500),
+                    color: Colors.white,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ),
@@ -231,10 +244,7 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
               left: 20,
               right: 20,
               child: Center(
-                child: _Toast(
-                  message: _toastMsg,
-                  success: _toastIsSuccess,
-                ),
+                child: _Toast(message: _toastMsg, success: _toastIsSuccess),
               ),
             ),
 
@@ -245,13 +255,14 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
             right: 0,
             child: SafeArea(
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                 child: Row(
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                          color: Colors.white),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new_rounded,
+                        color: Colors.white,
+                      ),
                       onPressed: () => context.pop(),
                     ),
                     const Text(
@@ -260,14 +271,11 @@ class _ScannerScreenState extends ConsumerState<ScannerScreen> {
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
-                        shadows: [
-                          Shadow(blurRadius: 8, color: Colors.black87)
-                        ],
+                        shadows: [Shadow(blurRadius: 8, color: Colors.black87)],
                       ),
                     ),
                     const Spacer(),
-                    if (_items.isNotEmpty)
-                      _CartBadge(count: totalQty),
+                    if (_items.isNotEmpty) _CartBadge(count: totalQty),
                   ],
                 ),
               ),
@@ -313,8 +321,7 @@ class _ScanFrame extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color:
-              success ? Colors.greenAccent : Colors.white.withAlpha(200),
+          color: success ? Colors.greenAccent : Colors.white.withAlpha(200),
           width: 2.5,
         ),
       ),
@@ -329,8 +336,11 @@ class _ScanFrame extends StatelessWidget {
               color: Colors.greenAccent.withAlpha(50),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.check_rounded,
-                color: Colors.greenAccent, size: 26),
+            child: const Icon(
+              Icons.check_rounded,
+              color: Colors.greenAccent,
+              size: 26,
+            ),
           ),
         ),
       ),
@@ -357,9 +367,10 @@ class _Toast extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withAlpha(80),
-              blurRadius: 10,
-              offset: const Offset(0, 4)),
+            color: Colors.black.withAlpha(80),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Row(
@@ -377,9 +388,10 @@ class _Toast extends StatelessWidget {
             child: Text(
               success ? '$message added' : message,
               style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500),
+                color: Colors.white,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
             ),
           ),
         ],
@@ -391,7 +403,7 @@ class _Toast extends StatelessWidget {
 // ── Cart badge ────────────────────────────────────────────────────────────────
 
 class _CartBadge extends StatelessWidget {
-  final int count;
+  final double count;
 
   const _CartBadge({required this.count});
 
@@ -408,15 +420,19 @@ class _CartBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.shopping_cart_outlined,
-              color: Colors.white, size: 15),
+          const Icon(
+            Icons.shopping_cart_outlined,
+            color: Colors.white,
+            size: 15,
+          ),
           const SizedBox(width: 4),
           Text(
-            '$count',
+            formatQuantity(count, 3),
             style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 13),
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
           ),
         ],
       ),
@@ -428,7 +444,7 @@ class _CartBadge extends StatelessWidget {
 
 class _BottomPanel extends StatelessWidget {
   final List<_ScanItem> items;
-  final int totalQty;
+  final double totalQty;
   final double totalAmt;
   final NumberFormat cf;
   final void Function(int) onIncrement;
@@ -461,9 +477,10 @@ class _BottomPanel extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         boxShadow: [
           BoxShadow(
-              color: Color(0x44000000),
-              blurRadius: 24,
-              offset: Offset(0, -6)),
+            color: Color(0x44000000),
+            blurRadius: 24,
+            offset: Offset(0, -6),
+          ),
         ],
       ),
       child: Column(
@@ -503,11 +520,15 @@ class _BottomPanel extends StatelessWidget {
                     style: TextButton.styleFrom(
                       minimumSize: Size.zero,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: const Text('Clear All',
-                        style: TextStyle(color: kError, fontSize: 13)),
+                    child: const Text(
+                      'Clear All',
+                      style: TextStyle(color: kError, fontSize: 13),
+                    ),
                   ),
               ],
             ),
@@ -519,13 +540,15 @@ class _BottomPanel extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 14),
               child: Column(
                 children: [
-                  Icon(Icons.qr_code_scanner_rounded,
-                      color: Colors.grey.shade400, size: 30),
+                  Icon(
+                    Icons.qr_code_scanner_rounded,
+                    color: Colors.grey.shade400,
+                    size: 30,
+                  ),
                   const SizedBox(height: 6),
                   Text(
                     'Point camera at a barcode to scan',
-                    style:
-                        TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                    style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
                   ),
                 ],
               ),
@@ -537,7 +560,10 @@ class _BottomPanel extends StatelessWidget {
                 padding: const EdgeInsets.only(top: 2, bottom: 4),
                 itemCount: items.length,
                 separatorBuilder: (_, _) => const Divider(
-                    height: 1, indent: kPadding, endIndent: kPadding),
+                  height: 1,
+                  indent: kPadding,
+                  endIndent: kPadding,
+                ),
                 itemBuilder: (ctx, i) => _ItemRow(
                   item: items[i],
                   cf: cf,
@@ -555,26 +581,35 @@ class _BottomPanel extends StatelessWidget {
               style: ElevatedButton.styleFrom(
                 minimumSize: const Size(double.infinity, 52),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14)),
+                  borderRadius: BorderRadius.circular(14),
+                ),
                 disabledBackgroundColor: kBorder,
                 disabledForegroundColor: Colors.grey,
               ),
               child: items.isEmpty
-                  ? const Text('Scan items to add to cart',
+                  ? const Text(
+                      'Scan items to add to cart',
                       style: TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.bold))
+                        fontSize: 15,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    )
                   : Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Add $totalQty item${totalQty == 1 ? '' : 's'} to cart',
+                          'Add ${formatQuantity(totalQty, 3)} items to cart',
                           style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.bold),
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         Text(
                           cf.format(totalAmt),
                           style: const TextStyle(
-                              fontSize: 15, fontWeight: FontWeight.bold),
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ],
                     ),
@@ -613,17 +648,15 @@ class _ItemRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final showVariant = item.variant.name.isNotEmpty &&
-        item.variant.name != 'Default';
+    final showVariant =
+        item.variant.name.isNotEmpty && item.variant.name != 'Default';
 
     final avatarColor = item.product.name.isEmpty
         ? _avatarColors[0]
-        : _avatarColors[
-            item.product.name.codeUnitAt(0) % _avatarColors.length];
+        : _avatarColors[item.product.name.codeUnitAt(0) % _avatarColors.length];
 
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(horizontal: kPadding, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: kPadding, vertical: 8),
       child: Row(
         children: [
           // Colored avatar
@@ -657,14 +690,17 @@ class _ItemRow extends StatelessWidget {
                 Text(
                   item.product.name,
                   style: const TextStyle(
-                      fontWeight: FontWeight.w600, fontSize: 14),
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 if (showVariant)
-                  Text(item.variant.name,
-                      style: const TextStyle(
-                          fontSize: 11, color: Colors.grey)),
+                  Text(
+                    item.variant.name,
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
                 Text(
                   cf.format(item.variant.price * item.quantity),
                   style: const TextStyle(
@@ -682,11 +718,19 @@ class _ItemRow extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               _CtrlBtn(
-                icon: item.quantity == 1
+                icon:
+                    item.quantity <=
+                        quantityStep(item.product.quantityPrecision)
                     ? Icons.delete_outline_rounded
                     : Icons.remove_rounded,
-                iconColor: item.quantity == 1 ? kError : kText,
-                bgColor: item.quantity == 1
+                iconColor:
+                    item.quantity <=
+                        quantityStep(item.product.quantityPrecision)
+                    ? kError
+                    : kText,
+                bgColor:
+                    item.quantity <=
+                        quantityStep(item.product.quantityPrecision)
                     ? kError.withAlpha(20)
                     : kSurface,
                 onTap: onDec,
@@ -694,10 +738,12 @@ class _ItemRow extends StatelessWidget {
               SizedBox(
                 width: 32,
                 child: Text(
-                  '${item.quantity}',
+                  formatQuantity(item.quantity, item.product.quantityPrecision),
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 15),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
                 ),
               ),
               _CtrlBtn(

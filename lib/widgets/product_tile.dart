@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../providers/warehouse_provider.dart';
 import '../core/constants.dart';
+import '../core/quantity_format.dart';
 
 class ProductTile extends ConsumerWidget {
   final Product product;
@@ -17,20 +18,27 @@ class ProductTile extends ConsumerWidget {
     final cf = NumberFormat.currency(locale: 'en_US', symbol: '\$');
 
     return ListTile(
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: kPadding, vertical: 4),
+      contentPadding: const EdgeInsets.symmetric(
+        horizontal: kPadding,
+        vertical: 4,
+      ),
       leading: _ProductThumb(imagePath: product.imagePath),
       title: Row(
         children: [
           Expanded(
-            child: Text(product.name,
-                style: const TextStyle(fontWeight: FontWeight.bold)),
+            child: Text(
+              product.name,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
           ),
           if (product.isLowStock)
             const Padding(
               padding: EdgeInsets.only(left: 4),
-              child: Icon(Icons.warning_amber_rounded,
-                  size: 16, color: Color(0xFFF59E0B)),
+              child: Icon(
+                Icons.warning_amber_rounded,
+                size: 16,
+                color: Color(0xFFF59E0B),
+              ),
             ),
         ],
       ),
@@ -48,14 +56,16 @@ class ProductTile extends ConsumerWidget {
           Row(
             children: [
               Text(
-                '${product.totalStock} ${product.unit} in stock',
+                '${formatQuantity(product.totalStock, product.quantityPrecision)} ${product.unit} in stock',
                 style: const TextStyle(fontSize: 13),
               ),
               if (product.hasVariants) ...[
                 const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 6, vertical: 1),
+                    horizontal: 6,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: kSurface,
                     border: Border.all(color: kBorder),
@@ -63,8 +73,7 @@ class ProductTile extends ConsumerWidget {
                   ),
                   child: Text(
                     '${product.variants.length} sizes',
-                    style:
-                        const TextStyle(fontSize: 11, color: Colors.grey),
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
                   ),
                 ),
               ],
@@ -118,9 +127,9 @@ class ProductTile extends ConsumerWidget {
     if (confirmed == true && product.id != null) {
       await ref.read(warehouseProvider.notifier).deleteProduct(product.id!);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Product deleted')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Product deleted')));
       }
     }
   }
@@ -132,8 +141,7 @@ class _ProductThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasImage =
-        imagePath.isNotEmpty && File(imagePath).existsSync();
+    final hasImage = imagePath.isNotEmpty && File(imagePath).existsSync();
     return Container(
       width: 48,
       height: 48,
@@ -147,8 +155,11 @@ class _ProductThumb extends StatelessWidget {
               borderRadius: BorderRadius.circular(6),
               child: Image.file(File(imagePath), fit: BoxFit.cover),
             )
-          : const Icon(Icons.inventory_2_outlined,
-              size: 24, color: Colors.grey),
+          : const Icon(
+              Icons.inventory_2_outlined,
+              size: 24,
+              color: Colors.grey,
+            ),
     );
   }
 }

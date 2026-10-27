@@ -6,11 +6,16 @@ import 'package:m_pos/models/product_variant.dart';
 import 'package:m_pos/models/cart_item.dart';
 import 'package:m_pos/models/sale.dart';
 
-Product _makeProduct(String name, {double price = 5.0, int stock = 20}) =>
+Product _makeProduct(String name, {double price = 5.0, double stock = 20}) =>
     Product(
       name: name,
       variants: [
-        ProductVariant(name: 'Default', barcode: '', price: price, stock: stock)
+        ProductVariant(
+          name: 'Default',
+          barcode: '',
+          price: price,
+          stock: stock,
+        ),
       ],
     );
 
@@ -33,7 +38,9 @@ void main() {
 
   group('insertProduct / getAllProducts', () {
     test('inserts product and loads it back with variants', () async {
-      final id = await db.insertProduct(_makeProduct('Apple Juice', price: 2.5, stock: 50));
+      final id = await db.insertProduct(
+        _makeProduct('Apple Juice', price: 2.5, stock: 50),
+      );
       expect(id, greaterThan(0));
 
       final products = await db.getAllProducts();
@@ -57,16 +64,28 @@ void main() {
       final p = Product(
         name: 'Cola',
         variants: [
-          const ProductVariant(name: '500ml', barcode: 'A1', price: 1.5, stock: 100),
-          const ProductVariant(name: '1L', barcode: 'A2', price: 2.5, stock: 50),
+          const ProductVariant(
+            name: '500ml',
+            barcode: 'A1',
+            price: 1.5,
+            stock: 100,
+          ),
+          const ProductVariant(
+            name: '1L',
+            barcode: 'A2',
+            price: 2.5,
+            stock: 50,
+          ),
         ],
       );
       await db.insertProduct(p);
 
       final loaded = await db.getAllProducts();
       expect(loaded.first.variants.length, 2);
-      expect(loaded.first.variants.map((v) => v.name).toList(),
-          containsAll(['500ml', '1L']));
+      expect(
+        loaded.first.variants.map((v) => v.name).toList(),
+        containsAll(['500ml', '1L']),
+      );
     });
   });
 
@@ -106,14 +125,25 @@ void main() {
       final p = Product(
         name: 'Soda',
         variants: [
-          const ProductVariant(name: 'Small', barcode: '', price: 1.0, stock: 10),
-          const ProductVariant(name: 'Large', barcode: '', price: 2.0, stock: 10),
+          const ProductVariant(
+            name: 'Small',
+            barcode: '',
+            price: 1.0,
+            stock: 10,
+          ),
+          const ProductVariant(
+            name: 'Large',
+            barcode: '',
+            price: 2.0,
+            stock: 10,
+          ),
         ],
       );
       await db.insertProduct(p);
       final loaded = await db.getAllProducts();
-      final withOneVariant =
-          loaded.first.copyWith(variants: [loaded.first.variants.first]);
+      final withOneVariant = loaded.first.copyWith(
+        variants: [loaded.first.variants.first],
+      );
 
       await db.updateProduct(withOneVariant);
 
@@ -209,11 +239,13 @@ void main() {
       final v = p.variants.first;
 
       Future<void> addSale(DateTime dt, double amount) async {
-        await db.insertSale(Sale(
-          items: [CartItem(product: p, variant: v, quantity: 1)],
-          totalAmount: amount,
-          createdAt: dt,
-        ));
+        await db.insertSale(
+          Sale(
+            items: [CartItem(product: p, variant: v, quantity: 1)],
+            totalAmount: amount,
+            createdAt: dt,
+          ),
+        );
       }
 
       await addSale(DateTime(2024, 1, 1), 10.0);

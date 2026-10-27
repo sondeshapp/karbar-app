@@ -1,8 +1,8 @@
-# mPOS — Backend Documentation
+# Karbar — Backend Documentation
 
-> **Status:** Planning phase. Frontend is being finalized. This document will evolve.
-> **Stack:** Go · Gin · PostgreSQL
-> **Last updated:** July 2026
+> **Status:** Go API, owner sign-in, secure token storage, outgoing upload, revisioned catalog and product image transfer, idempotent application of sale, return, purchase, and baki history, staff account sync, and foreground plus OS-scheduled sync triggers are implemented; deployed-service verification remains in progress.
+> **Stack:** Go `net/http` · PostgreSQL
+> **Last updated:** October 2026
 
 ---
 
@@ -23,7 +23,7 @@
 
 ## Overview
 
-The mPOS backend serves as the cloud layer for the Flutter mobile app. Right now the app runs fully on-device with SQLite. The backend's job is to:
+The Karbar backend serves as the cloud layer for the Flutter mobile app. Right now the app runs fully on-device with SQLite. The backend's job is to:
 
 - Be the source of truth for all shop data
 - Enable sync across multiple devices (owner's phone + staff phone + tablet)
@@ -39,7 +39,7 @@ The Flutter app should remain **fully functional offline**. The backend is addit
 | Layer | Choice | Why |
 |-------|--------|-----|
 | Language | Go | Developer expertise, fast, lightweight binaries |
-| HTTP Framework | Gin | Minimal, well-documented, good middleware ecosystem |
+| HTTP Framework | Go `net/http` | Small route surface; avoids a framework dependency |
 | Database | PostgreSQL | Relational integrity, complex aggregation queries for dashboard, mature |
 | Auth | JWT (access + refresh tokens) | Stateless, works well with mobile clients |
 | Migrations | `golang-migrate` | SQL-first, version-controlled schema changes |
@@ -72,7 +72,7 @@ The Flutter app should remain **fully functional offline**. The backend is addit
                             │ HTTPS / REST
                             ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                      Go + Gin API                           │
+│                    Go + net/http API                        │
 │                                                             │
 │   ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌──────────┐  │
 │   │  Auth    │  │  Sales   │  │  Baki    │  │  Stock   │  │
@@ -121,7 +121,7 @@ Request comes in
 JWT middleware extracts shop_id from token claims
       │
       ▼
-shop_id is set in Gin context: c.Set("shop_id", shopID)
+shop_id is carried in the authenticated request context
       │
       ▼
 Handler reads: shopID := c.GetString("shop_id")
@@ -336,6 +336,8 @@ All authenticated routes require header: `Authorization: Bearer <access_token>`
 | `POST` | `/auth/refresh` | Exchange refresh token for new access token |
 | `POST` | `/auth/logout` | Invalidate refresh token |
 
+The implemented API mounts these routes at `/v1`. Registration is closed unless the operator sets `REGISTRATION_SECRET`; registration requests send it in `X-Registration-Code`. Phone numbers are normalized to digits and unique across the service. Login takes `{ "phone", "password" }` and does not accept a client-provided shop ID. Passwords are 10–72 bytes and bcrypt hashed. Access tokens expire after 15 minutes; refresh tokens last 30 days, are stored only as SHA-256 hashes, and rotate on refresh.
+
 ---
 
 ### Shop
@@ -369,6 +371,19 @@ All authenticated routes require header: `Authorization: Bearer <access_token>`
 | `POST` | `/sales` | Record a completed sale |
 | `GET` | `/sales/:id` | Get single sale with all items |
 | `GET` | `/sales/summary` | Dashboard aggregates (today/week/month) |
+
+### Offline sync events
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/sync/events` | Accept one durable offline event with an idempotency key |
+| `GET` | `/sync/events?after=<cursor>` | Read later events in the authenticated shop |
+| `PUT` | `/sync/catalog` | Create/update a product, customer, or shared shop settings record at an expected revision |
+| `GET` | `/sync/catalog?after=<cursor>` | Read revisioned catalog changes in cursor order |
+
+The client sends events sequentially from its SQLite outbox using an HTTPS bearer token. `eventId` is a random UUID generated once when the local transaction commits; the client reuses it on every retry. The server enforces a unique `(shop_id, event_id)` key and returns the original cursor for identical duplicate delivery. Reusing a key with different event content returns `409`. Event storage and idempotency recording happen in one transaction. Local integer IDs are device-scoped references and must not be treated as global server IDs; event payloads carry stable catalog UUIDs for products, variants, customers, and staff. The API stores an immutable transaction event log and a revisioned catalog snapshot; the Flutter client applies incoming sale, return, purchase, and baki history idempotently while leaving stock to catalog snapshots. Sale staff attribution resolves through the synced staff UUID.
+
+Product/customer/shop-settings/supplier/staff catalog writes use optimistic revisions. Each write carries a stable entity UUID, a mutation UUID for retry deduplication, and `baseRevision`. The API accepts only the current revision, writes the canonical snapshot and a shop-scoped change cursor in one transaction, and returns the current server payload on revision conflict. The Flutter client builds product/customer/shop-settings/supplier/staff snapshots from SQLite and durably queues revisioned uploads per remote shop. Retries reuse their mutation UUID, and product deletion becomes a tombstone when the product was previously queued or accepted by that shop. Sync uploads these mutations and fetches remote change pages into an account-scoped SQLite inbox with a durable cursor; backup restore resets that cursor so the device can fetch again. Incoming changes apply when the local record still matches its saved cloud revision and snapshot. Local edits, revision mismatches, and removals that would break product/customer/supplier history become reviewable conflicts. Owners can keep the local version (rebased as a new upload) or explicitly apply the cloud version. Shared currency, tax, and shop contact fields sync; language and theme stay device-local. Purchase headers and lines also sync through the event feed and import only after supplier/product/variant catalog identities are present. Imported purchase history never modifies current stock or cost, since those are supplied by catalog snapshots. Sync runs at launch/resume, every five foreground minutes, and through a 12-hour OS periodic task; iOS execution timing is system-controlled. Deployment verification remains pending.
 
 ---
 
@@ -514,30 +529,32 @@ GET /products
 
 The Flutter app works offline-first using SQLite. Sync to the backend is additive.
 
-### Approach: Last-Write-Wins with `updated_at`
+### Approach: durable event delivery plus revisioned catalog sync
 
 ```
 App goes offline
     │
-    ├── Creates sale locally (SQLite)
-    ├── Marks it: sync_status = 'pending'
+    ├── Creates sale locally (SQLite) and appends an outbox event atomically
     │
 App comes back online
     │
-    ├── Reads all rows WHERE sync_status = 'pending'
-    ├── POSTs each to the API
-    ├── On 201 Created → sync_status = 'synced', server_id = uuid
-    └── On conflict → server wins (server timestamp is newer)
+    ├── Reads pending outbox events in creation order
+    ├── POSTs one event at a time with the same idempotency key on retries
+    ├── On 2xx → marks that event sent
+    └── On network/API failure → retains the event and pauses later events
 ```
+
+Sales, returns, baki collections, and stock movements are append-only business events. Do not resolve these with last-write-wins because that can erase concurrent transactions. Product and customer edits need a separate revision/conflict rule; never silently replace a newer local edit with a server row.
 
 ### What needs a `sync_status` column locally
 
-| Local Table | Sync direction |
+| Local data | Sync direction |
 |-------------|---------------|
-| products | bidirectional |
-| sales | app → server only |
-| customers | bidirectional |
-| baki_payments | app → server only |
+| sales and sale items | app → server only, as one event |
+| sale returns | app → server only, as one event |
+| baki payments | app → server only, as one event |
+| products and customers | bidirectional, revisioned catalog |
+| shop currency, tax, and contact settings | bidirectional, revisioned shared settings |
 
 ### Real-time (future)
 
@@ -546,7 +563,11 @@ For multi-device live updates (e.g. one staff makes a sale and it appears on own
 - **Server-Sent Events (SSE)** — Go supports this natively, lightweight, one-directional push from server to client. Good fit.
 - **WebSockets** — bidirectional but more complex. Only needed if devices need to send real-time data to each other, which isn't the case here.
 
-**Decision deferred** until multi-device sync is confirmed as a needed feature.
+Real-time push is deferred. Devices can poll the cursor-based event feed when they reconnect; SSE can be added later if a shop needs near-live updates.
+
+### Current implementation
+
+`backend/` contains the Go API, PostgreSQL schema, phone/password authentication, rotating refresh tokens, shop-scoped event inbox/feed, and revisioned catalog endpoints. It must run behind a TLS proxy. `REGISTRATION_SECRET` must be kept private and only used during owner account creation. The Flutter app provides owner registration/sign-in, stores tokens in platform secure storage, refreshes expired access tokens, uploads sale, return, purchase, and baki events from its durable outbox, uploads product/customer/shop-settings/supplier/staff snapshots, including compressed product images, from a separate durable outbox, and applies incoming catalog and transaction history changes with conflict review. Staff PIN salt/hash fields are included in the staff snapshot so imported accounts can authenticate offline; the hosting database must restrict access to these records and use at-rest encryption. This is not a complete multi-device sync or cloud backup: deployment verification remains pending.
 
 ---
 
@@ -556,7 +577,7 @@ Things to decide before backend development starts.
 
 | # | Question | Options | Notes |
 |---|----------|---------|-------|
-| 1 | UUIDs or integer IDs? | UUID v4 vs BIGSERIAL | UUIDs safer for distributed sync, integers simpler |
+| 1 | Local vs remote IDs? | Local SQLite integers plus UUID event IDs; remote UUID entity IDs | **Decision:** local IDs remain device-scoped. Each outbox event uses an immutable UUID idempotency key; server entity IDs are assigned by the API. |
 | 2 | Image storage? | Local disk vs S3-compatible (Cloudflare R2) | R2 has free tier, no egress cost |
 | 3 | Phone number as login or email? | Phone (OTP) vs email/password | Target users are more comfortable with phone |
 | 4 | OTP verification on register? | Yes / No / Later | Prevents fake accounts if SaaS |

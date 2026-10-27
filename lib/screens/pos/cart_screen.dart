@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../models/sale.dart';
 import '../../models/customer.dart';
+import '../../models/sale_payment.dart';
 import '../../providers/cart_provider.dart';
 import '../../providers/sales_provider.dart';
 import '../../providers/warehouse_provider.dart';
@@ -13,6 +14,8 @@ import '../../widgets/cart_item_tile.dart';
 import '../../widgets/empty_state.dart';
 import '../../core/constants.dart';
 import '../../providers/settings_provider.dart';
+import '../../core/quantity_format.dart';
+import '../../providers/staff_provider.dart';
 
 class CartScreen extends ConsumerStatefulWidget {
   const CartScreen({super.key});
@@ -25,18 +28,29 @@ class _CartScreenState extends ConsumerState<CartScreen> {
   bool _processing = false;
 
   Future<void> _completeSale(
-      String paymentType, int? customerId, String? customerName) async {
+    List<SalePayment> payments,
+    Customer? customer,
+  ) async {
     final notifier = ref.read(cartProvider.notifier);
     final cartItems = ref.read(cartProvider);
+    final hasBaki = payments.any((payment) => payment.method == 'baki');
+    final paymentType = hasBaki
+        ? 'baki'
+        : payments.length == 1
+        ? payments.single.method
+        : 'split';
     final sale = Sale(
       items: List.from(cartItems),
       totalAmount: notifier.totalAmount,
       createdAt: DateTime.now(),
       paymentType: paymentType,
-      customerId: customerId,
-      customerName: customerName,
+      customerId: customer?.id,
+      customerName: customer?.name,
       discountAmount: notifier.orderDiscount,
       discountType: notifier.orderDiscountType,
+      taxAmount: notifier.taxAmount,
+      payments: payments,
+      staffId: ref.read(activeStaffProvider)?.id,
     );
     try {
       await ref.read(salesProvider.notifier).completeSale(sale);
@@ -49,7 +63,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sale failed: $e'), backgroundColor: Colors.red),
+          SnackBar(
+            content: Text('Sale failed: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     } finally {
@@ -64,15 +81,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       backgroundColor: Colors.transparent,
       builder: (ctx) => _PaymentSheet(
         total: total,
-        onCash: () {
+        onComplete: (payments, customer) {
           Navigator.pop(ctx);
           setState(() => _processing = true);
-          _completeSale('cash', null, null);
-        },
-        onBaki: (Customer customer) {
-          Navigator.pop(ctx);
-          setState(() => _processing = true);
-          _completeSale('baki', customer.id, customer.name);
+          _completeSale(payments, customer);
         },
       ),
     );
@@ -83,7 +95,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     final cartItems = ref.watch(cartProvider);
     final notifier = ref.read(cartProvider.notifier);
     final settings = ref.watch(settingsProvider);
-    final cf = NumberFormat.currency(locale: settings.currencyLocale, symbol: settings.currencySymbol);
+    final cf = NumberFormat.currency(
+      locale: settings.currencyLocale,
+      symbol: settings.currencySymbol,
+    );
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -92,7 +107,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         title: Text(
           cartItems.isEmpty
               ? 'Cart'
-              : 'Cart (${notifier.itemCount} item${notifier.itemCount == 1 ? '' : 's'})',
+              : 'Cart (${formatQuantity(notifier.itemCount, 3)} items)',
         ),
         actions: [
           if (cartItems.isNotEmpty)
@@ -104,7 +119,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       ),
       body: cartItems.isEmpty
           ? const EmptyState(
-              message: 'Your cart is empty.\nGo back and add some products.')
+              message: 'Your cart is empty.\nGo back and add some products.',
+            )
           : ListView(
               padding: const EdgeInsets.only(top: 8, bottom: 160),
               children: [
@@ -127,13 +143,16 @@ class _CartScreenState extends ConsumerState<CartScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Order summary',
-                          style: TextStyle(
-                              fontWeight: FontWeight.bold, fontSize: 14)),
+                      const Text(
+                        'Order summary',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       _SummaryRow(
-                        label:
-                            '${notifier.itemCount} item${notifier.itemCount == 1 ? '' : 's'}',
+                        label: '${formatQuantity(notifier.itemCount, 3)} items',
                         value: cf.format(notifier.subtotal),
                       ),
                       const SizedBox(height: 10),
@@ -177,14 +196,10 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
 class _PaymentSheet extends ConsumerStatefulWidget {
   final double total;
-  final VoidCallback onCash;
-  final ValueChanged<Customer> onBaki;
+  final void Function(List<SalePayment> payments, Customer? customer)
+  onComplete;
 
-  const _PaymentSheet({
-    required this.total,
-    required this.onCash,
-    required this.onBaki,
-  });
+  const _PaymentSheet({required this.total, required this.onComplete});
 
   @override
   ConsumerState<_PaymentSheet> createState() => _PaymentSheetState();
@@ -193,18 +208,113 @@ class _PaymentSheet extends ConsumerStatefulWidget {
 class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
   bool _showingCustomerPicker = false;
   final _searchCtrl = TextEditingController();
+  late final TextEditingController _cashCtrl;
+  final _bkashCtrl = TextEditingController(text: '0');
+  final _nagadCtrl = TextEditingController(text: '0');
+  final _cardCtrl = TextEditingController(text: '0');
   String _query = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _cashCtrl = TextEditingController(text: widget.total.toStringAsFixed(2));
+  }
 
   @override
   void dispose() {
     _searchCtrl.dispose();
+    _cashCtrl.dispose();
+    _bkashCtrl.dispose();
+    _nagadCtrl.dispose();
+    _cardCtrl.dispose();
     super.dispose();
+  }
+
+  List<SalePayment>? _paymentsFor() {
+    final values = <({String method, TextEditingController controller})>[
+      (method: 'cash', controller: _cashCtrl),
+      (method: 'bkash', controller: _bkashCtrl),
+      (method: 'nagad', controller: _nagadCtrl),
+      (method: 'card', controller: _cardCtrl),
+    ];
+    final payments = <SalePayment>[];
+    var paid = 0.0;
+    for (final value in values) {
+      final amount = double.tryParse(value.controller.text.trim());
+      if (amount == null || !amount.isFinite || amount < 0) return null;
+      if (amount > 0) {
+        payments.add(SalePayment(method: value.method, amount: amount));
+        paid += amount;
+      }
+    }
+    if (paid > widget.total + 0.01) return null;
+    final baki = (widget.total - paid).clamp(0.0, double.infinity);
+    if (baki > 0.01) {
+      payments.add(SalePayment(method: 'baki', amount: baki));
+    } else if (payments.isNotEmpty && (widget.total - paid).abs() <= 0.01) {
+      final last = payments.removeLast();
+      payments.add(
+        SalePayment(
+          method: last.method,
+          amount: last.amount + widget.total - paid,
+        ),
+      );
+    }
+    if (payments.isEmpty) return null;
+    return payments;
+  }
+
+  void _continue(Customer? customer) {
+    final payments = _paymentsFor();
+    if (payments == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(ref.read(stringsProvider).enterValidPayment)),
+      );
+      return;
+    }
+    if (payments.any((payment) => payment.method == 'baki') &&
+        customer == null) {
+      setState(() => _showingCustomerPicker = true);
+      return;
+    }
+    widget.onComplete(payments, customer);
+  }
+
+  double get _paidAmount => [_cashCtrl, _bkashCtrl, _nagadCtrl, _cardCtrl].fold(
+    0.0,
+    (sum, controller) => sum + (double.tryParse(controller.text.trim()) ?? 0),
+  );
+
+  Widget _amountField({
+    required String label,
+    required IconData icon,
+    required TextEditingController controller,
+    required void Function(String) onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextField(
+        controller: controller,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, size: 20),
+          border: const OutlineInputBorder(),
+          isDense: true,
+        ),
+        onChanged: (_) => onChanged(''),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
-    final cf = NumberFormat.currency(locale: settings.currencyLocale, symbol: settings.currencySymbol);
+    final s = ref.watch(stringsProvider);
+    final cf = NumberFormat.currency(
+      locale: settings.currencyLocale,
+      symbol: settings.currencySymbol,
+    );
     final bottomPad = MediaQuery.of(context).viewInsets.bottom;
 
     return Container(
@@ -218,134 +328,97 @@ class _PaymentSheetState extends ConsumerState<_PaymentSheet> {
               query: _query,
               searchCtrl: _searchCtrl,
               onQueryChanged: (v) => setState(() => _query = v),
-              onCustomerSelected: widget.onBaki,
+              onCustomerSelected: (customer) => _continue(customer),
               onBack: () => setState(() {
                 _showingCustomerPicker = false;
                 _query = '';
                 _searchCtrl.clear();
               }),
             )
-          : _MethodChooser(
-              total: widget.total,
-              fmt: cf,
-              onCash: widget.onCash,
-              onBaki: () => setState(() => _showingCustomerPicker = true),
-            ),
-    );
-  }
-}
-
-class _MethodChooser extends StatelessWidget {
-  final double total;
-  final NumberFormat fmt;
-  final VoidCallback onCash;
-  final VoidCallback onBaki;
-
-  const _MethodChooser({
-    required this.total,
-    required this.fmt,
-    required this.onCash,
-    required this.onBaki,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 36,
-          height: 4,
-          margin: const EdgeInsets.only(bottom: 20),
-          decoration: BoxDecoration(
-            color: Colors.grey.shade300,
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const Text(
-          'How is the customer paying?',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          fmt.format(total),
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w800,
-            color: kPrimary,
-          ),
-        ),
-        const SizedBox(height: 24),
-        Row(
-          children: [
-            Expanded(
-              child: _PayButton(
-                icon: Icons.payments_rounded,
-                label: 'Nagad',
-                sublabel: 'Pay now',
-                color: const Color(0xFF059669),
-                onTap: onCash,
+          : SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 18),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    s.payment,
+                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Total ${cf.format(widget.total)}',
+                    style: const TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w800,
+                      color: kPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _amountField(
+                    label: s.cash,
+                    icon: Icons.payments_rounded,
+                    controller: _cashCtrl,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  _amountField(
+                    label: s.bkash,
+                    icon: Icons.phone_android_rounded,
+                    controller: _bkashCtrl,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  _amountField(
+                    label: s.nagad,
+                    icon: Icons.account_balance_wallet_outlined,
+                    controller: _nagadCtrl,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  _amountField(
+                    label: s.card,
+                    icon: Icons.credit_card_rounded,
+                    controller: _cardCtrl,
+                    onChanged: (_) => setState(() {}),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [Text(s.received), Text(cf.format(_paidAmount))],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(s.remainingBaki),
+                      Text(
+                        cf.format(
+                          (widget.total - _paidAmount).clamp(
+                            0.0,
+                            double.infinity,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    height: 48,
+                    child: FilledButton(
+                      onPressed: () => _continue(null),
+                      child: Text(s.continuePayment),
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _PayButton(
-                icon: Icons.pending_actions_rounded,
-                label: 'বাকি',
-                sublabel: 'Pay later',
-                color: const Color(0xFFF59E0B),
-                onTap: onBaki,
-              ),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-}
-
-class _PayButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String sublabel;
-  final Color color;
-  final VoidCallback onTap;
-
-  const _PayButton({
-    required this.icon,
-    required this.label,
-    required this.sublabel,
-    required this.color,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 20),
-        decoration: BoxDecoration(
-          color: color.withAlpha(20),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withAlpha(60), width: 1.5),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: color, size: 28),
-            const SizedBox(height: 8),
-            Text(label,
-                style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    color: color)),
-            const SizedBox(height: 2),
-            Text(sublabel,
-                style:
-                    TextStyle(fontSize: 12, color: color.withAlpha(180))),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -390,13 +463,17 @@ class _CustomerPicker extends ConsumerWidget {
           children: [
             GestureDetector(
               onTap: onBack,
-              child: const Icon(Icons.arrow_back_ios_new_rounded,
-                  size: 18, color: Color(0xFF64748B)),
+              child: const Icon(
+                Icons.arrow_back_ios_new_rounded,
+                size: 18,
+                color: Color(0xFF64748B),
+              ),
             ),
             const SizedBox(width: 8),
-            const Text('Select Customer',
-                style: TextStyle(
-                    fontSize: 16, fontWeight: FontWeight.w700)),
+            const Text(
+              'Select Customer',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+            ),
           ],
         ),
         const SizedBox(height: 14),
@@ -411,10 +488,12 @@ class _CustomerPicker extends ConsumerWidget {
             autofocus: true,
             decoration: const InputDecoration(
               hintText: 'Search by name or phone...',
-              hintStyle:
-                  TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
-              prefixIcon: Icon(Icons.search_rounded,
-                  size: 20, color: Color(0xFF9CA3AF)),
+              hintStyle: TextStyle(fontSize: 14, color: Color(0xFF9CA3AF)),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                size: 20,
+                color: Color(0xFF9CA3AF),
+              ),
               border: InputBorder.none,
               isDense: true,
               contentPadding: EdgeInsets.symmetric(vertical: 12),
@@ -426,8 +505,7 @@ class _CustomerPicker extends ConsumerWidget {
         ConstrainedBox(
           constraints: const BoxConstraints(maxHeight: 240),
           child: customersAsync.when(
-            loading: () =>
-                const Center(child: CircularProgressIndicator()),
+            loading: () => const Center(child: CircularProgressIndicator()),
             error: (_, _) =>
                 const Center(child: Text('Error loading customers')),
             data: (customers) => ListView(
@@ -441,18 +519,22 @@ class _CustomerPicker extends ConsumerWidget {
                       color: kPrimary.withAlpha(20),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.person_add_rounded,
-                        color: kPrimary, size: 18),
+                    child: const Icon(
+                      Icons.person_add_rounded,
+                      color: kPrimary,
+                      size: 18,
+                    ),
                   ),
                   title: Text(
                     query.isNotEmpty
                         ? 'Add "$query" as new customer'
                         : 'Add new customer',
                     style: const TextStyle(
-                        color: kPrimary, fontWeight: FontWeight.w600),
+                      color: kPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  onTap: () =>
-                      _showAddCustomerDialog(context, ref, query),
+                  onTap: () => _showAddCustomerDialog(context, ref, query),
                   contentPadding: EdgeInsets.zero,
                 ),
                 const Divider(height: 8),
@@ -462,18 +544,20 @@ class _CustomerPicker extends ConsumerWidget {
                       width: 36,
                       height: 36,
                       decoration: BoxDecoration(
-                        color:
-                            const Color(0xFF64748B).withAlpha(18),
+                        color: const Color(0xFF64748B).withAlpha(18),
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.person_rounded,
-                          color: Color(0xFF64748B), size: 18),
+                      child: const Icon(
+                        Icons.person_rounded,
+                        color: Color(0xFF64748B),
+                        size: 18,
+                      ),
                     ),
-                    title: Text(c.name,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600)),
-                    subtitle:
-                        c.phone.isNotEmpty ? Text(c.phone) : null,
+                    title: Text(
+                      c.name,
+                      style: const TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: c.phone.isNotEmpty ? Text(c.phone) : null,
                     onTap: () => onCustomerSelected(c),
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -497,7 +581,10 @@ class _CustomerPicker extends ConsumerWidget {
   }
 
   void _showAddCustomerDialog(
-      BuildContext context, WidgetRef ref, String initialName) {
+    BuildContext context,
+    WidgetRef ref,
+    String initialName,
+  ) {
     final nameCtrl = TextEditingController(text: initialName);
     final phoneCtrl = TextEditingController();
     showDialog(
@@ -528,8 +615,9 @@ class _CustomerPicker extends ConsumerWidget {
         ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
             onPressed: () async {
               final name = nameCtrl.text.trim();
@@ -539,8 +627,7 @@ class _CustomerPicker extends ConsumerWidget {
                 phone: phoneCtrl.text.trim(),
                 createdAt: DateTime.now(),
               );
-              final id =
-                  await DatabaseHelper().insertCustomer(customer);
+              final id = await DatabaseHelper().insertCustomer(customer);
               final saved = Customer(
                 id: id,
                 name: customer.name,
@@ -596,7 +683,8 @@ class _OrderDiscountInput extends ConsumerStatefulWidget {
   const _OrderDiscountInput({required this.cf});
 
   @override
-  ConsumerState<_OrderDiscountInput> createState() => _OrderDiscountInputState();
+  ConsumerState<_OrderDiscountInput> createState() =>
+      _OrderDiscountInputState();
 }
 
 class _OrderDiscountInputState extends ConsumerState<_OrderDiscountInput> {
@@ -618,7 +706,9 @@ class _OrderDiscountInputState extends ConsumerState<_OrderDiscountInput> {
             height: 36,
             child: TextField(
               controller: _ctrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               style: const TextStyle(fontSize: 13),
               decoration: InputDecoration(
                 hintText: 'Discount',
@@ -627,13 +717,16 @@ class _OrderDiscountInputState extends ConsumerState<_OrderDiscountInput> {
                 suffixText: _isPercent ? '%' : null,
                 border: const OutlineInputBorder(),
                 isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
               ),
               onChanged: (v) {
                 final amount = double.tryParse(v) ?? 0;
-                ref.read(cartProvider.notifier).setOrderDiscount(
-                  amount, _isPercent ? 'percent' : 'flat',
-                );
+                ref
+                    .read(cartProvider.notifier)
+                    .setOrderDiscount(amount, _isPercent ? 'percent' : 'flat');
               },
             ),
           ),
@@ -643,9 +736,9 @@ class _OrderDiscountInputState extends ConsumerState<_OrderDiscountInput> {
           onTap: () {
             setState(() => _isPercent = !_isPercent);
             final amount = double.tryParse(_ctrl.text) ?? 0;
-            ref.read(cartProvider.notifier).setOrderDiscount(
-              amount, _isPercent ? 'percent' : 'flat',
-            );
+            ref
+                .read(cartProvider.notifier)
+                .setOrderDiscount(amount, _isPercent ? 'percent' : 'flat');
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -673,22 +766,34 @@ class _CheckoutSheet extends ConsumerWidget {
   final bool processing;
   final VoidCallback onComplete;
 
-  const _CheckoutSheet({required this.total, required this.onComplete, this.processing = false});
+  const _CheckoutSheet({
+    required this.total,
+    required this.onComplete,
+    this.processing = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
-    final cf = NumberFormat.currency(locale: settings.currencyLocale, symbol: settings.currencySymbol);
+    final cf = NumberFormat.currency(
+      locale: settings.currencyLocale,
+      symbol: settings.currencySymbol,
+    );
     return Container(
-      padding: EdgeInsets.fromLTRB(kPadding, 12, kPadding,
-          MediaQuery.of(context).padding.bottom + 12),
+      padding: EdgeInsets.fromLTRB(
+        kPadding,
+        12,
+        kPadding,
+        MediaQuery.of(context).padding.bottom + 12,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-              color: Color(0x1A000000),
-              blurRadius: 20,
-              offset: Offset(0, -4))
+            color: Color(0x1A000000),
+            blurRadius: 20,
+            offset: Offset(0, -4),
+          ),
         ],
       ),
       child: ElevatedButton(
@@ -696,22 +801,32 @@ class _CheckoutSheet extends ConsumerWidget {
         style: ElevatedButton.styleFrom(
           minimumSize: const Size(double.infinity, 52),
           shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14)),
+            borderRadius: BorderRadius.circular(14),
+          ),
         ),
         child: processing
             ? const SizedBox(
-                height: 22, width: 22,
-                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                height: 22,
+                width: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
               )
             : Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Complete sale',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
-                  Text(cf.format(total),
-                      style: const TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.bold)),
+                  const Text(
+                    'Complete sale',
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    cf.format(total),
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
       ),

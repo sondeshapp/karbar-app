@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../providers/dashboard_provider.dart';
 import '../providers/sales_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/staff_provider.dart';
 import '../core/app_strings.dart';
 import '../models/sale.dart';
 import 'pos/pos_screen.dart';
@@ -21,18 +22,16 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selectedTab = ref.watch(selectedTabProvider);
+    final staff = ref.watch(activeStaffProvider);
     final s = ref.watch(stringsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
+    if (staff?.isOwner == false) return const PosScreen();
     return Scaffold(
       extendBody: true,
       body: IndexedStack(
         index: selectedTab,
-        children: const [
-          _HomeHub(),
-          PosScreen(),
-          SettingsScreen(),
-        ],
+        children: const [_HomeHub(), PosScreen(), SettingsScreen()],
       ),
       bottomNavigationBar: _GlassNavBar(
         selectedTab: selectedTab,
@@ -158,16 +157,13 @@ class _HomeHubState extends ConsumerState<_HomeHub> {
       ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return Scaffold(
-      backgroundColor:
-          isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9),
+      backgroundColor: isDark
+          ? const Color(0xFF0F172A)
+          : const Color(0xFFF1F5F9),
       body: CustomScrollView(
         slivers: [
           SliverToBoxAdapter(
-            child: _Header(
-              revenueToday: revenueToday,
-              fmt: fmt,
-              s: s,
-            ),
+            child: _Header(revenueToday: revenueToday, fmt: fmt, s: s),
           ),
           SliverToBoxAdapter(
             child: _ServicesSection(s: s, isDark: isDark),
@@ -203,8 +199,11 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hour = DateTime.now().hour;
-    final greeting =
-        hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+    final greeting = hour < 12
+        ? 'Good morning'
+        : hour < 17
+        ? 'Good afternoon'
+        : 'Good evening';
 
     return Container(
       decoration: const BoxDecoration(
@@ -237,8 +236,11 @@ class _Header extends StatelessWidget {
                   color: const Color(0xFF2563EB),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.store_rounded,
-                    color: Colors.white, size: 20),
+                child: const Icon(
+                  Icons.store_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
               const SizedBox(width: 10),
               Text(
@@ -257,8 +259,11 @@ class _Header extends StatelessWidget {
                   color: Colors.white.withAlpha(18),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.notifications_outlined,
-                    color: Colors.white, size: 20),
+                child: const Icon(
+                  Icons.notifications_outlined,
+                  color: Colors.white,
+                  size: 20,
+                ),
               ),
             ],
           ),
@@ -284,7 +289,9 @@ class _Header extends StatelessWidget {
                     Text(
                       '${s.today} revenue',
                       style: const TextStyle(
-                          color: Color(0xFF64748B), fontSize: 13),
+                        color: Color(0xFF64748B),
+                        fontSize: 13,
+                      ),
                     ),
                   ],
                 ),
@@ -293,7 +300,9 @@ class _Header extends StatelessWidget {
                 onTap: () => context.push('/pos'),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 20, vertical: 12),
+                    horizontal: 20,
+                    vertical: 12,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF2563EB),
                     borderRadius: BorderRadius.circular(14),
@@ -344,8 +353,11 @@ class _QuickAction extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
 
-  const _QuickAction(
-      {required this.icon, required this.label, required this.onTap});
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -390,22 +402,46 @@ class _ServicesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final services = [
-      _Svc(Icons.point_of_sale_rounded, s.navPos,
-          const Color(0xFF2563EB), '/pos'),
-      _Svc(Icons.inventory_2_rounded, s.navWarehouse,
-          const Color(0xFF059669), '/warehouse'),
-      _Svc(Icons.receipt_long_rounded, 'History',
-          const Color(0xFFF59E0B), '/history'),
-      _Svc(Icons.dashboard_rounded, s.navDashboard,
-          const Color(0xFF7C3AED), '/dashboard'),
-      _Svc(Icons.settings_rounded, s.navSettings,
-          const Color(0xFF64748B), '/settings'),
-      _Svc(Icons.pending_actions_rounded, 'বাকি হিসেব',
-          const Color(0xFFF59E0B), '/baki'),
+      _Svc(
+        Icons.inventory_2_rounded,
+        s.navWarehouse,
+        const Color(0xFF059669),
+        '/warehouse',
+      ),
+      _Svc(
+        Icons.receipt_long_rounded,
+        s.historyLabel,
+        const Color(0xFFF59E0B),
+        '/history',
+      ),
+      _Svc(
+        Icons.dashboard_rounded,
+        s.navDashboard,
+        const Color(0xFF7C3AED),
+        '/dashboard',
+      ),
+      _Svc(
+        Icons.pending_actions_rounded,
+        'বাকি হিসেব',
+        const Color(0xFFF59E0B),
+        '/baki',
+      ),
+      _Svc(
+        Icons.bar_chart_rounded,
+        s.reportsLabel,
+        const Color(0xFF2563EB),
+        '/reports',
+      ),
+      _Svc(
+        Icons.account_balance_wallet_rounded,
+        s.dailyCashClose,
+        const Color(0xFF0F766E),
+        '/cash-close',
+      ),
     ];
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -417,13 +453,14 @@ class _ServicesSection extends StatelessWidget {
               color: isDark ? Colors.white : const Color(0xFF0F172A),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           GridView.count(
             crossAxisCount: 3,
             shrinkWrap: true,
+            padding: EdgeInsets.zero,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
+            mainAxisSpacing: 10,
             childAspectRatio: 0.95,
             children: services
                 .map((svc) => _ServiceTile(svc: svc, isDark: isDark))
@@ -521,7 +558,7 @@ class _RecentSalesSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -549,7 +586,7 @@ class _RecentSalesSection extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
           if (sales.isEmpty)
             Container(
               width: double.infinity,
@@ -590,29 +627,31 @@ class _RecentSalesSection extends StatelessWidget {
                 ),
                 itemBuilder: (context, i) {
                   final sale = sales[i];
-                  final timeStr =
-                      DateFormat('h:mm a').format(sale.createdAt);
+                  final timeStr = DateFormat('h:mm a').format(sale.createdAt);
                   return Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Row(
                       children: [
                         Container(
                           width: 38,
                           height: 38,
                           decoration: BoxDecoration(
-                            color:
-                                const Color(0xFF059669).withAlpha(22),
+                            color: const Color(0xFF059669).withAlpha(22),
                             borderRadius: BorderRadius.circular(10),
                           ),
-                          child: const Icon(Icons.receipt_rounded,
-                              color: Color(0xFF059669), size: 18),
+                          child: const Icon(
+                            Icons.receipt_rounded,
+                            color: Color(0xFF059669),
+                            size: 18,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
                                 'Sale #${sale.id ?? (i + 1)}',
@@ -627,8 +666,9 @@ class _RecentSalesSection extends StatelessWidget {
                               Text(
                                 '${sale.items.length} item${sale.items.length == 1 ? '' : 's'} · $timeStr',
                                 style: const TextStyle(
-                                    fontSize: 12,
-                                    color: Color(0xFF94A3B8)),
+                                  fontSize: 12,
+                                  color: Color(0xFF94A3B8),
+                                ),
                               ),
                             ],
                           ),

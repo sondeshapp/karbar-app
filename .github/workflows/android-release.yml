@@ -1,0 +1,102 @@
+name: Android APK Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish Android APK
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: stable
+          cache: true
+
+      - name: Configure Android release signing
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+        run: |
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD ANDROID_STORE_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "Required GitHub Actions secret is missing: ${name}" >&2
+              exit 1
+            fi
+          done
+
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/karbar-upload-key.jks
+          cat > android/key.properties <<EOF
+          storeFile=karbar-upload-key.jks
+          storePassword=$ANDROID_STORE_PASSWORD
+          keyAlias=$ANDROID_KEY_ALIAS
+          keyPassword=$ANDROID_KEY_PASSWORD
+          EOF
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build release APK
+        run: flutter build apk --release --build-number "$GITHUB_RUN_NUMBER"
+
+      - name: Prepare release metadata
+        id: release
+        run: |
+          version="$(sed -n 's/^version: *\([^+ ]*\).*/\1/p' pubspec.yaml)"
+          if [ -z "$version" ]; then
+            echo "Could not read the app version from pubspec.yaml" >&2
+            exit 1
+          fi
+          tag="v${version}-build.${GITHUB_RUN_NUMBER}"
+          asset="Karbar-POS-${tag}.apk"
+          cp build/app/outputs/flutter-apk/app-release.apk "$asset"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "asset=$asset" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.release.outputs.tag }}
+          APP_VERSION: ${{ steps.release.outputs.version }}
+          APK_ASSET: ${{ steps.release.outputs.asset }}
+        run: |
+          release_title="Karbar POS ${APP_VERSION} (build ${GITHUB_RUN_NUMBER})"
+          if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "$APK_ASSET" --clobber
+          elif [ "$(gh release list --limit 1 --json tagName --jq 'length')" = "0" ]; then
+            gh release create "$RELEASE_TAG" "$APK_ASSET" \
+              --title "$release_title" \
+              --notes "$(cat .github/first-release-notes.md)" \
+              --generate-notes \
+              --target "$GITHUB_SHA"
+          else
+            gh release create "$RELEASE_TAG" "$APK_ASSET" \
+              --title "$release_title" \
+              --generate-notes \
+              --target "$GITHUB_SHA"
+          fi

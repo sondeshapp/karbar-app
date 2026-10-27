@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🛒 mPOS — Mobile Point of Sale
+# 🛒 Karbar — Mobile Point of Sale
 
 ### A modern, offline-first POS system built with Flutter
 

@@ -3,7 +3,7 @@ import 'product.dart';
 class BestSellerItem {
   final String productName;
   final String variantName;
-  final int quantitySold;
+  final double quantitySold;
   final double revenue;
 
   const BestSellerItem({

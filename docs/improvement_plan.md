@@ -1,4 +1,4 @@
-# mPOS — Improvement Plan
+# Karbar — Improvement Plan
 
 > A living document for what's broken, what's missing, and what's next.
 

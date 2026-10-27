@@ -3,6 +3,7 @@ import '../models/cart_item.dart';
 import '../models/product.dart';
 import '../models/product_variant.dart';
 import 'settings_provider.dart';
+import '../core/quantity_format.dart';
 
 class CartNotifier extends StateNotifier<List<CartItem>> {
   final Ref _ref;
@@ -20,13 +21,44 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
       state = [
         for (int i = 0; i < state.length; i++)
           if (i == index)
-            state[i].copyWith(quantity: state[i].quantity + 1)
+            state[i].copyWith(
+              quantity:
+                  state[i].quantity +
+                  quantityStep(state[i].product.quantityPrecision),
+            )
           else
             state[i],
       ];
     } else {
-      state = [...state, CartItem(product: product, variant: variant, quantity: 1)];
+      state = [
+        ...state,
+        CartItem(product: product, variant: variant, quantity: 1),
+      ];
     }
+  }
+
+  void setScannedQuantity(
+    Product product,
+    ProductVariant variant,
+    double quantity,
+  ) {
+    if (!quantity.isFinite || quantity <= 0) return;
+    if (product.quantityPrecision == 0 && quantity % 1 != 0) return;
+    final index = state.indexWhere((item) => item.variant.id == variant.id);
+    if (index < 0) {
+      state = [
+        ...state,
+        CartItem(product: product, variant: variant, quantity: quantity),
+      ];
+      return;
+    }
+    state = [
+      for (var i = 0; i < state.length; i++)
+        if (i == index)
+          state[i].copyWith(quantity: state[i].quantity + quantity)
+        else
+          state[i],
+    ];
   }
 
   void removeItem(int variantId) {
@@ -35,26 +67,46 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
 
   void incrementQty(int variantId) {
     state = state.map((item) {
-      if (item.variant.id == variantId) return item.copyWith(quantity: item.quantity + 1);
+      if (item.variant.id == variantId) {
+        return item.copyWith(
+          quantity:
+              item.quantity + quantityStep(item.product.quantityPrecision),
+        );
+      }
       return item;
     }).toList();
   }
 
   void decrementQty(int variantId) {
     final item = state.firstWhere((item) => item.variant.id == variantId);
-    if (item.quantity <= 1) {
+    final step = quantityStep(item.product.quantityPrecision);
+    if (item.quantity <= step) {
       removeItem(variantId);
     } else {
       state = state.map((item) {
-        if (item.variant.id == variantId) return item.copyWith(quantity: item.quantity - 1);
+        if (item.variant.id == variantId) {
+          return item.copyWith(quantity: item.quantity - step);
+        }
         return item;
       }).toList();
     }
   }
 
+  void setItemQuantity(int variantId, double quantity) {
+    if (!quantity.isFinite || quantity <= 0) return;
+    state = state.map((item) {
+      if (item.variant.id == variantId) {
+        return item.copyWith(quantity: quantity);
+      }
+      return item;
+    }).toList();
+  }
+
   void setItemDiscount(int variantId, double amount) {
     state = state.map((item) {
-      if (item.variant.id == variantId) return item.copyWith(discountAmount: amount);
+      if (item.variant.id == variantId) {
+        return item.copyWith(discountAmount: amount);
+      }
       return item;
     }).toList();
   }
@@ -89,10 +141,9 @@ class CartNotifier extends StateNotifier<List<CartItem>> {
   double get totalAmount =>
       (subtotal - orderDiscountFlat).clamp(0, double.infinity) + taxAmount;
 
-  int get itemCount => state.fold(0, (sum, item) => sum + item.quantity);
+  double get itemCount => state.fold(0.0, (sum, item) => sum + item.quantity);
 }
 
-final cartProvider =
-    StateNotifierProvider<CartNotifier, List<CartItem>>((ref) {
+final cartProvider = StateNotifierProvider<CartNotifier, List<CartItem>>((ref) {
   return CartNotifier(ref);
 });

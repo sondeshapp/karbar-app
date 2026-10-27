@@ -6,6 +6,7 @@ import '../models/product.dart';
 import '../models/product_variant.dart';
 import '../providers/cart_provider.dart';
 import '../core/constants.dart';
+import '../core/quantity_format.dart';
 
 // Consistent pastel gradients for products without an image
 const _placeholderGradients = [
@@ -33,24 +34,23 @@ class ProductGridCard extends ConsumerWidget {
     final cf = NumberFormat.currency(locale: 'en_US', symbol: '\$');
     final cartItems = ref.watch(cartProvider);
 
-    final singleVariant =
-        !product.hasVariants && product.variants.isNotEmpty
-            ? product.variants.first
-            : null;
+    final singleVariant = !product.hasVariants && product.variants.isNotEmpty
+        ? product.variants.first
+        : null;
 
     final singleQty = singleVariant != null
         ? (cartItems
-                .where((i) => i.variant.id == singleVariant.id)
-                .firstOrNull
-                ?.quantity ??
-            0)
-        : 0;
+                  .where((i) => i.variant.id == singleVariant.id)
+                  .firstOrNull
+                  ?.quantity ??
+              0.0)
+        : 0.0;
 
     final multiQty = product.hasVariants
         ? cartItems
-            .where((i) => i.product.id == product.id)
-            .fold(0, (s, i) => s + i.quantity)
-        : 0;
+              .where((i) => i.product.id == product.id)
+              .fold(0.0, (s, i) => s + i.quantity)
+        : 0.0;
 
     void handleAdd() {
       if (product.variants.isEmpty) return;
@@ -63,8 +63,9 @@ class ProductGridCard extends ConsumerWidget {
       }
     }
 
-    final gradIdx =
-        product.name.isEmpty ? 0 : product.name.codeUnitAt(0) % _placeholderGradients.length;
+    final gradIdx = product.name.isEmpty
+        ? 0
+        : product.name.codeUnitAt(0) % _placeholderGradients.length;
     final gradColors = _placeholderGradients[gradIdx];
 
     return Container(
@@ -88,11 +89,10 @@ class ProductGridCard extends ConsumerWidget {
             child: Stack(
               children: [
                 ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(14)),
-                  child: SizedBox.expand(
-                    child: _productImage(gradColors),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(14),
                   ),
+                  child: SizedBox.expand(child: _productImage(gradColors)),
                 ),
                 // Add / qty control
                 Positioned(
@@ -108,10 +108,7 @@ class ProductGridCard extends ConsumerWidget {
                               .read(cartProvider.notifier)
                               .incrementQty(singleVariant.id!),
                         )
-                      : _AddCircle(
-                          qty: multiQty,
-                          onTap: handleAdd,
-                        ),
+                      : _AddCircle(qty: multiQty, onTap: handleAdd),
                 ),
                 // Multi-variant badge
                 if (product.hasVariants && multiQty > 0)
@@ -120,7 +117,9 @@ class ProductGridCard extends ConsumerWidget {
                     top: 8,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 6, vertical: 2),
+                        horizontal: 6,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: kPrimary,
                         borderRadius: BorderRadius.circular(6),
@@ -128,9 +127,10 @@ class ProductGridCard extends ConsumerWidget {
                       child: Text(
                         '$multiQty in cart',
                         style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.bold),
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                   ),
@@ -162,7 +162,9 @@ class ProductGridCard extends ConsumerWidget {
                         const SizedBox(width: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 4, vertical: 1),
+                            horizontal: 4,
+                            vertical: 1,
+                          ),
                           decoration: BoxDecoration(
                             color: kSurface,
                             borderRadius: BorderRadius.circular(4),
@@ -170,7 +172,9 @@ class ProductGridCard extends ConsumerWidget {
                           child: Text(
                             '${product.variants.length} sizes',
                             style: const TextStyle(
-                                fontSize: 9, color: Colors.grey),
+                              fontSize: 9,
+                              color: Colors.grey,
+                            ),
                           ),
                         ),
                       ],
@@ -182,17 +186,17 @@ class ProductGridCard extends ConsumerWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 12,
-                        color: kText,
-                        height: 1.3),
+                      fontSize: 12,
+                      color: kText,
+                      height: 1.3,
+                    ),
                   ),
                   if (product.brand.isNotEmpty)
                     Text(
                       product.brand,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 10, color: Colors.grey),
+                      style: const TextStyle(fontSize: 10, color: Colors.grey),
                     ),
                 ],
               ),
@@ -204,12 +208,8 @@ class ProductGridCard extends ConsumerWidget {
   }
 
   Widget _productImage(List<Color> gradColors) {
-    if (product.imagePath.isNotEmpty &&
-        File(product.imagePath).existsSync()) {
-      return Image.file(
-        File(product.imagePath),
-        fit: BoxFit.cover,
-      );
+    if (product.imagePath.isNotEmpty && File(product.imagePath).existsSync()) {
+      return Image.file(File(product.imagePath), fit: BoxFit.cover);
     }
     return Container(
       decoration: BoxDecoration(
@@ -242,7 +242,7 @@ class ProductGridCard extends ConsumerWidget {
 // ── Add circle button ──────────────────────────────────────────────────────
 
 class _AddCircle extends StatelessWidget {
-  final int qty;
+  final double qty;
   final VoidCallback onTap;
 
   const _AddCircle({required this.qty, required this.onTap});
@@ -278,15 +278,11 @@ class _AddCircle extends StatelessWidget {
 // ── Quantity pill ──────────────────────────────────────────────────────────
 
 class _QtyPill extends StatelessWidget {
-  final int qty;
+  final double qty;
   final VoidCallback onDec;
   final VoidCallback onInc;
 
-  const _QtyPill({
-    required this.qty,
-    required this.onDec,
-    required this.onInc,
-  });
+  const _QtyPill({required this.qty, required this.onDec, required this.onInc});
 
   @override
   Widget build(BuildContext context) {
@@ -310,11 +306,12 @@ class _QtyPill extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6),
             child: Text(
-              '$qty',
+              formatQuantity(qty, 3),
               style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14),
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
             ),
           ),
           _PillBtn(icon: Icons.add_rounded, onTap: onInc),

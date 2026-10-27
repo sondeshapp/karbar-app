@@ -4,19 +4,16 @@ import 'package:m_pos/models/product_variant.dart';
 
 void main() {
   group('Product', () {
-    ProductVariant v(int id, double price, int stock) => ProductVariant(
-          id: id,
-          name: 'Variant $id',
-          barcode: '',
-          price: price,
-          stock: stock,
-        );
+    ProductVariant v(int id, double price, double stock) => ProductVariant(
+      id: id,
+      name: 'Variant $id',
+      barcode: '',
+      price: price,
+      stock: stock,
+    );
 
     test('totalStock sums all variant stocks', () {
-      final p = Product(
-        name: 'X',
-        variants: [v(1, 1.0, 10), v(2, 2.0, 5)],
-      );
+      final p = Product(name: 'X', variants: [v(1, 1.0, 10), v(2, 2.0, 5)]);
       expect(p.totalStock, 15);
     });
 
@@ -35,28 +32,30 @@ void main() {
     });
 
     test('isLowStock triggers at or below threshold', () {
-      final p = Product(
-          name: 'X', lowStockAlert: 5, variants: [v(1, 1.0, 5)]);
+      final p = Product(name: 'X', lowStockAlert: 5, variants: [v(1, 1.0, 5)]);
       expect(p.isLowStock, true);
     });
 
     test('isLowStock false above threshold', () {
-      final p = Product(
-          name: 'X', lowStockAlert: 5, variants: [v(1, 1.0, 6)]);
+      final p = Product(name: 'X', lowStockAlert: 5, variants: [v(1, 1.0, 6)]);
       expect(p.isLowStock, false);
     });
 
-    test('isLowStock false when stock is 0 (out of stock handled separately)',
-        () {
-      final p = Product(
-          name: 'X', lowStockAlert: 5, variants: [v(1, 1.0, 0)]);
-      // out-of-stock is still considered low stock
-      expect(p.isLowStock, false); // 0 <= 5 but isLowStock requires > 0
-    });
+    test(
+      'isLowStock false when stock is 0 (out of stock handled separately)',
+      () {
+        final p = Product(
+          name: 'X',
+          lowStockAlert: 5,
+          variants: [v(1, 1.0, 0)],
+        );
+        // out-of-stock is still considered low stock
+        expect(p.isLowStock, false); // 0 <= 5 but isLowStock requires > 0
+      },
+    );
 
     test('price returns first variant price', () {
-      final p = Product(
-          name: 'X', variants: [v(1, 9.99, 10), v(2, 19.99, 5)]);
+      final p = Product(name: 'X', variants: [v(1, 9.99, 10), v(2, 19.99, 5)]);
       expect(p.price, 9.99);
     });
 
@@ -116,8 +115,7 @@ void main() {
     });
 
     test('copyWith works', () {
-      const v = ProductVariant(
-          name: 'S', barcode: '', price: 1.0, stock: 10);
+      const v = ProductVariant(name: 'S', barcode: '', price: 1.0, stock: 10);
       final copy = v.copyWith(price: 2.0, stock: 5);
       expect(copy.price, 2.0);
       expect(copy.stock, 5);
