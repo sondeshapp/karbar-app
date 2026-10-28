@@ -47,6 +47,12 @@ android {
 
     buildTypes {
         release {
+            // WorkManager creates its Room database reflectively. R8's release
+            // optimization strips the generated no-arg constructor and crashes
+            // the app before Flutter starts (see S25 release log).
+            isMinifyEnabled = false
+            isShrinkResources = false
+
             // Local release builds stay convenient until a release keystore is configured.
             // CI supplies key.properties and signs with the persistent upload key.
             signingConfig = signingConfigs.getByName(
