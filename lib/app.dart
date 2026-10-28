@@ -28,7 +28,6 @@ import 'providers/staff_provider.dart';
 import 'screens/settings/staff_gate_screen.dart';
 import 'screens/settings/staff_management_screen.dart';
 import 'screens/settings/cloud_sync_screen.dart';
-import 'screens/onboarding/onboarding_welcome_screen.dart';
 
 final _router = GoRouter(
   routes: [
@@ -153,7 +152,7 @@ class AppEntryScreen extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     final staff = ref.watch(activeStaffProvider);
     if (!settings.setupComplete) {
-      return const OnboardingWelcomeScreen();
+      return const ShopSetupScreen(firstRun: true);
     }
     if (staff == null) return const StaffGateScreen();
     return const HomeScreen();

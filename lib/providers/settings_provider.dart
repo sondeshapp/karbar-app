@@ -158,6 +158,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     state = state.copyWith(setupComplete: true);
     await _save();
   }
+
+  Future<void> reopenShopSetup() async {
+    state = state.copyWith(setupComplete: false);
+    await _save();
+  }
 }
 
 final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>(

@@ -86,8 +86,16 @@ jobs:
           APK_ASSET: ${{ steps.release.outputs.asset }}
         run: |
           release_title="Karbar POS ${APP_VERSION} (build ${GITHUB_RUN_NUMBER})"
+          release_notes_file=".github/release-notes/${APP_VERSION}.md"
+          version_release_count="$(gh release list --limit 100 --json tagName --jq "[.[] | select(.tagName | startswith(\"v${APP_VERSION}-build.\"))] | length")"
           if gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release upload "$RELEASE_TAG" "$APK_ASSET" --clobber
+          elif [ -f "$release_notes_file" ] && [ "$version_release_count" = "0" ]; then
+            gh release create "$RELEASE_TAG" "$APK_ASSET" \
+              --title "$release_title" \
+              --notes "$(cat "$release_notes_file")" \
+              --generate-notes \
+              --target "$GITHUB_SHA"
           elif [ "$(gh release list --limit 1 --json tagName --jq 'length')" = "0" ]; then
             gh release create "$RELEASE_TAG" "$APK_ASSET" \
               --title "$release_title" \

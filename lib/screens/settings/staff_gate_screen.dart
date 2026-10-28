@@ -10,6 +10,7 @@ import '../../models/staff_user.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/staff_provider.dart';
 import '../../widgets/recovery_code_dialog.dart';
+import '../../widgets/onboarding_step_header.dart';
 
 class StaffGateScreen extends ConsumerStatefulWidget {
   const StaffGateScreen({super.key});
@@ -70,6 +71,8 @@ class _StaffGateScreenState extends ConsumerState<StaffGateScreen>
     final accounts = ref.watch(hasStaffAccountsProvider);
     final settings = ref.watch(settingsProvider);
     final s = ref.watch(stringsProvider);
+    final isOwnerSetup =
+        accounts.whenOrNull(data: (hasAccounts) => !hasAccounts) ?? false;
     return Focus(
       focusNode: _keyboardFocusNode,
       autofocus: true,
@@ -78,82 +81,122 @@ class _StaffGateScreenState extends ConsumerState<StaffGateScreen>
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
           child: LayoutBuilder(
-            builder: (context, constraints) => SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(22, 14, 22, 18),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: math.max(0, constraints.maxHeight - 32),
-                ),
-                child: Align(
-                  alignment: Alignment.topCenter,
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 4),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 420),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          FadeTransition(
-                            opacity: _fade,
-                            child: _brandRow(
-                              context,
-                              settings.shopName,
-                              settings.language,
-                              s,
-                            ),
+            builder: (context, constraints) => Stack(
+              children: [
+                if (isOwnerSetup)
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: Opacity(
+                        opacity: Theme.of(context).brightness == Brightness.dark
+                            ? 0.035
+                            : 0.065,
+                        child: Image.asset(
+                          'assets/onboarding_market_pattern.png',
+                          scale: 2.4,
+                          repeat: ImageRepeat.repeat,
+                          fit: BoxFit.none,
+                          alignment: Alignment.topLeft,
+                        ),
+                      ),
+                    ),
+                  ),
+                SingleChildScrollView(
+                  padding: isOwnerSetup
+                      ? const EdgeInsets.fromLTRB(20, 16, 20, 28)
+                      : const EdgeInsets.fromLTRB(22, 14, 22, 18),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      minHeight: math.max(0, constraints.maxHeight - 32),
+                    ),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: isOwnerSetup ? 520 : 420,
                           ),
-                          const SizedBox(height: 22),
-                          FadeTransition(
-                            opacity: _fade,
-                            child: SlideTransition(
-                              position: _slide,
-                              child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 320),
-                                switchInCurve: Curves.easeOutCubic,
-                                switchOutCurve: Curves.easeIn,
-                                transitionBuilder: (child, animation) =>
-                                    FadeTransition(
-                                      opacity: animation,
-                                      child: SlideTransition(
-                                        position: Tween<Offset>(
-                                          begin: const Offset(0, 0.025),
-                                          end: Offset.zero,
-                                        ).animate(animation),
-                                        child: child,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              FadeTransition(
+                                opacity: _fade,
+                                child: isOwnerSetup
+                                    ? OnboardingStepHeader(
+                                        step: 2,
+                                        stepLabel: s.ownerSetupStep,
+                                        title: s.ownerPinTitle,
+                                        subtitle: s.ownerPinSubtitle,
+                                        shopName: settings.shopName,
+                                        trailing: _languageButton(
+                                          context,
+                                          settings.language,
+                                          s,
+                                        ),
+                                      )
+                                    : _brandRow(
+                                        context,
+                                        settings.shopName,
+                                        settings.language,
+                                        s,
                                       ),
+                              ),
+                              const SizedBox(height: 22),
+                              FadeTransition(
+                                opacity: _fade,
+                                child: SlideTransition(
+                                  position: _slide,
+                                  child: AnimatedSwitcher(
+                                    duration: const Duration(milliseconds: 320),
+                                    switchInCurve: Curves.easeOutCubic,
+                                    switchOutCurve: Curves.easeIn,
+                                    transitionBuilder: (child, animation) =>
+                                        FadeTransition(
+                                          opacity: animation,
+                                          child: SlideTransition(
+                                            position: Tween<Offset>(
+                                              begin: const Offset(0, 0.025),
+                                              end: Offset.zero,
+                                            ).animate(animation),
+                                            child: child,
+                                          ),
+                                        ),
+                                    child: accounts.when(
+                                      loading: () => _form(
+                                        key: const ValueKey('loading-accounts'),
+                                        icon: Icons.storefront_outlined,
+                                        title: s.enterStaffPinTitle,
+                                        subtitle: s.pleaseWait,
+                                        children: const [
+                                          Center(
+                                            child: CircularProgressIndicator(),
+                                          ),
+                                        ],
+                                      ),
+                                      error: (error, _) => _form(
+                                        key: const ValueKey(
+                                          'accounts-load-error',
+                                        ),
+                                        icon: Icons.error_outline_rounded,
+                                        title: s.staffAccountsLoadFailed,
+                                        subtitle: s.staffSignInSubtitle,
+                                        children: const [],
+                                      ),
+                                      data: (hasAccounts) => hasAccounts
+                                          ? _loginForm(s)
+                                          : _firstOwnerForm(s),
                                     ),
-                                child: accounts.when(
-                                  loading: () => _form(
-                                    key: const ValueKey('loading-accounts'),
-                                    icon: Icons.storefront_outlined,
-                                    title: s.enterStaffPinTitle,
-                                    subtitle: s.pleaseWait,
-                                    children: const [
-                                      Center(
-                                        child: CircularProgressIndicator(),
-                                      ),
-                                    ],
                                   ),
-                                  error: (error, _) => _form(
-                                    key: const ValueKey('accounts-load-error'),
-                                    icon: Icons.error_outline_rounded,
-                                    title: s.staffAccountsLoadFailed,
-                                    subtitle: s.staffSignInSubtitle,
-                                    children: const [],
-                                  ),
-                                  data: (hasAccounts) => hasAccounts
-                                      ? _loginForm(s)
-                                      : _firstOwnerForm(s),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -210,6 +253,11 @@ class _StaffGateScreenState extends ConsumerState<StaffGateScreen>
         ),
       ),
       const SizedBox(width: 10),
+      _languageButton(context, language, s),
+    ],
+  );
+
+  Widget _languageButton(BuildContext context, String language, AppStrings s) =>
       Tooltip(
         message: language == 'বাংলা' ? s.switchToEnglish : s.switchToBengali,
         child: OutlinedButton(
@@ -226,36 +274,48 @@ class _StaffGateScreenState extends ConsumerState<StaffGateScreen>
           ),
           child: Text(language == 'বাংলা' ? 'EN' : 'বাং'),
         ),
-      ),
-    ],
-  );
+      );
 
-  Widget _firstOwnerForm(AppStrings s) => _form(
+  Widget _firstOwnerForm(AppStrings s) => Padding(
     key: const ValueKey('create-owner'),
-    icon: Icons.admin_panel_settings_outlined,
-    title: s.ownerPinTitle,
-    subtitle: s.ownerPinSubtitle,
-    children: [
-      TextField(
-        controller: _name,
-        textCapitalization: TextCapitalization.words,
-        textInputAction: TextInputAction.next,
-        decoration: InputDecoration(
-          labelText: s.ownerNameLabel,
-          prefixIcon: const Icon(Icons.person_outline_rounded),
+    padding: const EdgeInsets.all(20),
+    child: _form(
+      key: const ValueKey('create-owner-form'),
+      icon: Icons.admin_panel_settings_outlined,
+      title: s.ownerPinTitle,
+      subtitle: s.ownerPinSubtitle,
+      showHeading: false,
+      children: [
+        TextField(
+          controller: _name,
+          textCapitalization: TextCapitalization.words,
+          textInputAction: TextInputAction.next,
+          decoration: InputDecoration(
+            labelText: s.ownerNameLabel,
+            prefixIcon: const Icon(Icons.person_outline_rounded),
+          ),
         ),
-      ),
-      const SizedBox(height: 14),
-      _pinLengthPicker(s),
-      const SizedBox(height: 10),
-      _pinField(s, maxLength: _pinLength),
-      const SizedBox(height: 20),
-      FilledButton.icon(
-        onPressed: _busy ? null : () => _createOwner(s),
-        icon: _busy ? _buttonProgress() : const Icon(Icons.shield_outlined),
-        label: Text(_busy ? s.pleaseWait : s.createOwnerButton),
-      ),
-    ],
+        const SizedBox(height: 14),
+        _pinLengthPicker(s),
+        const SizedBox(height: 10),
+        _pinField(s, maxLength: _pinLength),
+        const SizedBox(height: 22),
+        FilledButton.icon(
+          onPressed: _busy ? null : () => _createOwner(s),
+          icon: _busy ? _buttonProgress() : const Icon(Icons.shield_outlined),
+          label: Text(_busy ? s.pleaseWait : s.createOwnerButton),
+        ),
+        const SizedBox(height: 8),
+        TextButton.icon(
+          onPressed: _busy
+              ? null
+              : () => ref.read(settingsProvider.notifier).reopenShopSetup(),
+          icon: const Icon(Icons.arrow_back_rounded),
+          label: Text(s.previousStep),
+        ),
+      ],
+      showCard: false,
+    ),
   );
 
   Widget _loginForm(AppStrings s) {

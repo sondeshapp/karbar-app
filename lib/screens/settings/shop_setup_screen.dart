@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/settings_provider.dart';
-import '../../widgets/karbar_brand_header.dart';
+import '../../widgets/onboarding_step_header.dart';
 
 class ShopSetupScreen extends ConsumerStatefulWidget {
   final bool firstRun;
@@ -85,7 +85,7 @@ class _ShopSetupScreenState extends ConsumerState<ShopSetupScreen>
         address: _addressController.text,
         completeSetup: widget.firstRun,
       );
-      if (mounted) Navigator.of(context).pop();
+      if (mounted && !widget.firstRun) Navigator.of(context).pop();
     } catch (error, stackTrace) {
       debugPrint('Failed to save shop details: $error\n$stackTrace');
       if (mounted) {
@@ -100,7 +100,6 @@ class _ShopSetupScreenState extends ConsumerState<ShopSetupScreen>
 
   Future<void> _skipSetup() async {
     await ref.read(settingsProvider.notifier).completeSetup();
-    if (mounted && widget.firstRun) Navigator.of(context).pop();
   }
 
   @override
@@ -116,276 +115,279 @@ class _ShopSetupScreenState extends ConsumerState<ShopSetupScreen>
           ? const Color(0xFF0F172A)
           : const Color(0xFFF8FAFC),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          child: Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 520),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (isFirstRun) ...[
-                    FadeTransition(
-                      opacity: _headerFade,
-                      child: KarbarBrandHeader(subtitle: s.setupShopTitle),
+        child: Stack(
+          children: [
+            if (isFirstRun)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: Opacity(
+                    opacity: isDark ? 0.035 : 0.065,
+                    child: Image.asset(
+                      'assets/onboarding_market_pattern.png',
+                      scale: 2.4,
+                      repeat: ImageRepeat.repeat,
+                      fit: BoxFit.none,
+                      alignment: Alignment.topLeft,
                     ),
-                    const SizedBox(height: 18),
-                  ],
-                  FadeTransition(
-                    opacity: _formFade,
-                    child: SlideTransition(
-                      position: _formSlide,
-                      child: Card(
-                        color: cardColor,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18),
-                          side: BorderSide(
-                            color: isDark
-                                ? const Color(0xFF334155)
-                                : const Color(0xFFE2E8F0),
+                  ),
+                ),
+              ),
+            SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (isFirstRun) ...[
+                        FadeTransition(
+                          opacity: _headerFade,
+                          child: OnboardingStepHeader(
+                            step: 1,
+                            stepLabel: s.setupStep,
+                            title: s.setupShopTitle,
+                            subtitle: s.setupShopDescription,
                           ),
                         ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(22),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.stretch,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (isFirstRun) ...[
-                                  Row(
-                                    children: [
-                                      Text(
-                                        s.setupStep,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .labelMedium
-                                            ?.copyWith(
+                        const SizedBox(height: 22),
+                      ],
+                      FadeTransition(
+                        opacity: _formFade,
+                        child: SlideTransition(
+                          position: _formSlide,
+                          child: Card(
+                            color: isFirstRun ? Colors.transparent : cardColor,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                              side: isFirstRun
+                                  ? BorderSide.none
+                                  : BorderSide(
+                                      color: isDark
+                                          ? const Color(0xFF334155)
+                                          : const Color(0xFFE2E8F0),
+                                    ),
+                            ),
+                            child: Padding(
+                              padding: EdgeInsets.all(isFirstRun ? 20 : 22),
+                              child: Form(
+                                key: _formKey,
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    if (!isFirstRun)
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 42,
+                                            height: 42,
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                                  .withAlpha(22),
+                                              borderRadius:
+                                                  BorderRadius.circular(13),
+                                            ),
+                                            child: Icon(
+                                              Icons.storefront_rounded,
                                               color: Theme.of(
                                                 context,
                                               ).colorScheme.primary,
-                                              fontWeight: FontWeight.w700,
                                             ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: ClipRRect(
-                                          borderRadius: BorderRadius.circular(
-                                            4,
                                           ),
-                                          child: LinearProgressIndicator(
-                                            value: 0.5,
-                                            minHeight: 4,
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.primary,
-                                            backgroundColor: Theme.of(
-                                              context,
-                                            ).colorScheme.primary.withAlpha(24),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                ],
-                                Row(
-                                  children: [
-                                    Container(
-                                      width: 42,
-                                      height: 42,
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary.withAlpha(22),
-                                        borderRadius: BorderRadius.circular(13),
-                                      ),
-                                      child: Icon(
-                                        Icons.storefront_rounded,
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.primary,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            isFirstRun
-                                                ? s.shopDetailsTitle
-                                                : s.storeProfile,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .titleLarge
-                                                ?.copyWith(
-                                                  fontWeight: FontWeight.w700,
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  isFirstRun
+                                                      ? s.shopDetailsTitle
+                                                      : s.storeProfile,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .titleLarge
+                                                      ?.copyWith(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                      ),
                                                 ),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            s.setupShopDescription,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall
-                                                ?.copyWith(
-                                                  color: Theme.of(context)
-                                                      .colorScheme
-                                                      .onSurfaceVariant,
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  s.setupShopDescription,
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: Theme.of(context)
+                                                      .textTheme
+                                                      .bodySmall
+                                                      ?.copyWith(
+                                                        color: Theme.of(context)
+                                                            .colorScheme
+                                                            .onSurfaceVariant,
+                                                      ),
                                                 ),
+                                              ],
+                                            ),
                                           ),
                                         ],
                                       ),
+                                    if (!isFirstRun) const SizedBox(height: 22),
+                                    TextFormField(
+                                      key: const Key('shop-name-field'),
+                                      controller: _nameController,
+                                      textCapitalization:
+                                          TextCapitalization.words,
+                                      textInputAction: TextInputAction.next,
+                                      decoration: InputDecoration(
+                                        labelText: s.shopName,
+                                        prefixIcon: const Icon(
+                                          Icons.store_mall_directory_outlined,
+                                        ),
+                                      ),
+                                      validator: (value) =>
+                                          isFirstRun &&
+                                              (value == null ||
+                                                  value.trim().isEmpty)
+                                          ? s.shopNameRequired
+                                          : null,
                                     ),
+                                    SizedBox(height: isFirstRun ? 14 : 12),
+                                    TextFormField(
+                                      controller: _phoneController,
+                                      keyboardType: TextInputType.phone,
+                                      textInputAction: TextInputAction.next,
+                                      decoration: InputDecoration(
+                                        labelText: s.shopPhoneOptional,
+                                        prefixIcon: const Icon(
+                                          Icons.phone_outlined,
+                                        ),
+                                      ),
+                                    ),
+                                    SizedBox(height: isFirstRun ? 14 : 12),
+                                    TextFormField(
+                                      controller: _addressController,
+                                      textCapitalization:
+                                          TextCapitalization.sentences,
+                                      textInputAction: TextInputAction.done,
+                                      maxLines: 2,
+                                      decoration: InputDecoration(
+                                        labelText: s.shopAddressOptional,
+                                        prefixIcon: const Icon(
+                                          Icons.location_on_outlined,
+                                        ),
+                                        alignLabelWithHint: true,
+                                      ),
+                                    ),
+                                    SizedBox(height: isFirstRun ? 14 : 12),
+                                    DropdownButtonFormField<String>(
+                                      key: const Key('shop-currency-dropdown'),
+                                      initialValue:
+                                          _currencies.any(
+                                            (item) =>
+                                                item.locale == _currencyLocale,
+                                          )
+                                          ? _currencyLocale
+                                          : 'bn_BD',
+                                      isExpanded: true,
+                                      decoration: InputDecoration(
+                                        labelText: s.currencyLabel,
+                                        prefixIcon: const Icon(
+                                          Icons.currency_exchange_rounded,
+                                        ),
+                                      ),
+                                      selectedItemBuilder: (context) =>
+                                          _currencies
+                                              .map(
+                                                (item) => Align(
+                                                  alignment:
+                                                      Alignment.centerLeft,
+                                                  child: Text(
+                                                    item.shortLabel,
+                                                    maxLines: 1,
+                                                    overflow:
+                                                        TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              )
+                                              .toList(),
+                                      items: _currencies
+                                          .map(
+                                            (item) => DropdownMenuItem(
+                                              value: item.locale,
+                                              child: Text(
+                                                switch (item.locale) {
+                                                  'bn_BD' => s.currencyBdt,
+                                                  'en_US' => s.currencyUsd,
+                                                  'en_EU' => s.currencyEur,
+                                                  'en_GB' => s.currencyGbp,
+                                                  _ => item.shortLabel,
+                                                },
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: (value) {
+                                        if (value != null) {
+                                          setState(
+                                            () => _currencyLocale = value,
+                                          );
+                                        }
+                                      },
+                                    ),
+                                    SizedBox(height: isFirstRun ? 22 : 20),
+                                    FilledButton.icon(
+                                      key: const Key(
+                                        'save-shop-profile-button',
+                                      ),
+                                      onPressed: _saving ? null : _save,
+                                      icon: _saving
+                                          ? const SizedBox.square(
+                                              dimension: 18,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 2,
+                                              ),
+                                            )
+                                          : Icon(
+                                              isFirstRun
+                                                  ? Icons.arrow_forward_rounded
+                                                  : Icons.check_rounded,
+                                            ),
+                                      label: Text(
+                                        _saving
+                                            ? s.saving
+                                            : isFirstRun
+                                            ? s.continueSetup
+                                            : s.save,
+                                      ),
+                                    ),
+                                    if (isFirstRun) ...[
+                                      const SizedBox(height: 8),
+                                      TextButton(
+                                        onPressed: _saving ? null : _skipSetup,
+                                        child: Text(s.skipForNow),
+                                      ),
+                                    ],
                                   ],
                                 ),
-                                const SizedBox(height: 22),
-                                TextFormField(
-                                  key: const Key('shop-name-field'),
-                                  controller: _nameController,
-                                  textCapitalization: TextCapitalization.words,
-                                  textInputAction: TextInputAction.next,
-                                  decoration: InputDecoration(
-                                    labelText: s.shopName,
-                                    prefixIcon: const Icon(
-                                      Icons.store_mall_directory_outlined,
-                                    ),
-                                  ),
-                                  validator: (value) =>
-                                      isFirstRun &&
-                                          (value == null ||
-                                              value.trim().isEmpty)
-                                      ? s.shopNameRequired
-                                      : null,
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _phoneController,
-                                  keyboardType: TextInputType.phone,
-                                  textInputAction: TextInputAction.next,
-                                  decoration: InputDecoration(
-                                    labelText: s.shopPhoneOptional,
-                                    prefixIcon: const Icon(
-                                      Icons.phone_outlined,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _addressController,
-                                  textCapitalization:
-                                      TextCapitalization.sentences,
-                                  textInputAction: TextInputAction.done,
-                                  maxLines: 2,
-                                  decoration: InputDecoration(
-                                    labelText: s.shopAddressOptional,
-                                    prefixIcon: const Icon(
-                                      Icons.location_on_outlined,
-                                    ),
-                                    alignLabelWithHint: true,
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                DropdownButtonFormField<String>(
-                                  key: const Key('shop-currency-dropdown'),
-                                  initialValue:
-                                      _currencies.any(
-                                        (item) =>
-                                            item.locale == _currencyLocale,
-                                      )
-                                      ? _currencyLocale
-                                      : 'bn_BD',
-                                  isExpanded: true,
-                                  decoration: InputDecoration(
-                                    labelText: s.currencyLabel,
-                                    prefixIcon: const Icon(
-                                      Icons.currency_exchange_rounded,
-                                    ),
-                                  ),
-                                  selectedItemBuilder: (context) => _currencies
-                                      .map(
-                                        (item) => Align(
-                                          alignment: Alignment.centerLeft,
-                                          child: Text(
-                                            item.shortLabel,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
-                                  items: _currencies
-                                      .map(
-                                        (item) => DropdownMenuItem(
-                                          value: item.locale,
-                                          child: Text(
-                                            switch (item.locale) {
-                                              'bn_BD' => s.currencyBdt,
-                                              'en_US' => s.currencyUsd,
-                                              'en_EU' => s.currencyEur,
-                                              'en_GB' => s.currencyGbp,
-                                              _ => item.shortLabel,
-                                            },
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                          ),
-                                        ),
-                                      )
-                                      .toList(),
-                                  onChanged: (value) {
-                                    if (value != null) {
-                                      setState(() => _currencyLocale = value);
-                                    }
-                                  },
-                                ),
-                                const SizedBox(height: 20),
-                                FilledButton.icon(
-                                  key: const Key('save-shop-profile-button'),
-                                  onPressed: _saving ? null : _save,
-                                  icon: _saving
-                                      ? const SizedBox.square(
-                                          dimension: 18,
-                                          child: CircularProgressIndicator(
-                                            strokeWidth: 2,
-                                          ),
-                                        )
-                                      : Icon(
-                                          isFirstRun
-                                              ? Icons.arrow_forward_rounded
-                                              : Icons.check_rounded,
-                                        ),
-                                  label: Text(
-                                    _saving
-                                        ? s.saving
-                                        : isFirstRun
-                                        ? s.continueSetup
-                                        : s.save,
-                                  ),
-                                ),
-                                if (isFirstRun) ...[
-                                  const SizedBox(height: 8),
-                                  TextButton(
-                                    onPressed: _saving ? null : _skipSetup,
-                                    child: Text(s.skipForNow),
-                                  ),
-                                ],
-                              ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );

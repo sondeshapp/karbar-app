@@ -115,6 +115,7 @@ class AppStrings {
       isBn ? 'আপনার দোকান সেট আপ করুন' : 'Set up your shop';
   String get shopDetailsTitle => isBn ? 'দোকানের তথ্য' : 'Shop details';
   String get setupStep => isBn ? 'ধাপ ১ / ২' : 'Step 1 of 2';
+  String get ownerSetupStep => isBn ? 'ধাপ ২ / ২' : 'Step 2 of 2';
   String get currencyBdt =>
       isBn ? 'BDT — বাংলাদেশি টাকা (৳)' : 'BDT — Bangladeshi Taka (৳)';
   String get currencyUsd =>
@@ -132,6 +133,7 @@ class AppStrings {
       ? 'দোকানের তথ্য সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।'
       : 'Could not save shop details. Please try again.';
   String get skipForNow => isBn ? 'এখন এড়িয়ে যান' : 'Skip for now';
+  String get previousStep => isBn ? 'আগের ধাপে যান' : 'Previous';
   String get welcomeTitle => isBn ? 'কারবারে স্বাগতম' : 'Welcome to Karbar';
   String get welcomeDescription => isBn
       ? 'বিক্রি, পণ্য আর দোকানের হিসাব—সবকিছু গুছিয়ে রাখুন।'
