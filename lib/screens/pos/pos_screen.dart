@@ -174,7 +174,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                   padding: const EdgeInsets.fromLTRB(kPadding, 10, 8, 10),
                   child: Row(
                     children: [
-                      if (Navigator.canPop(context))
+                      if (context.canPop())
                         Padding(
                           padding: const EdgeInsets.only(right: 4),
                           child: IconButton(
@@ -182,7 +182,7 @@ class _PosScreenState extends ConsumerState<PosScreen> {
                               Icons.arrow_back_ios_new_rounded,
                               size: 18,
                             ),
-                            onPressed: () => Navigator.of(context).pop(),
+                            onPressed: () => context.pop(),
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(
                               minWidth: 32,

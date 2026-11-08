@@ -5,7 +5,10 @@ import '../../core/app_strings.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/sales_provider.dart';
 import '../../providers/staff_provider.dart';
+import '../../providers/home_navigation_provider.dart';
+import '../../db/database_helper.dart';
 import '../history/history_screen.dart';
+import '../../widgets/biometric_login_settings_tile.dart';
 import 'backup_restore_screen.dart';
 import 'shop_setup_screen.dart';
 
@@ -22,67 +25,134 @@ class SettingsScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = isDark ? const Color(0xFF0F172A) : const Color(0xFFF0F4F8);
 
-    if (staff?.isOwner != true) {
+    if (staff == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Settings')),
-        body: const Center(child: Text('Owner access is required.')),
+        appBar: AppBar(title: Text(s.navSettings)),
+        body: Center(
+          child: FilledButton(
+            onPressed: () => context.go('/'),
+            child: Text(s.loginTitle),
+          ),
+        ),
       );
     }
+    final isOwner = staff.isOwner;
 
     return Scaffold(
       backgroundColor: bg,
       body: ListView(
         padding: EdgeInsets.zero,
         children: [
-          _buildHeader(context, s, settings, showBackButton: showBackButton),
+          _buildHeader(
+            context,
+            s,
+            settings,
+            showBackButton: showBackButton,
+            canEditShop: isOwner,
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildQuickAccess(context, ref, s),
-                const SizedBox(height: 10),
                 Card(
                   child: ListTile(
-                    leading: const Icon(Icons.point_of_sale_rounded),
-                    title: const Text('Daily cash close'),
-                    subtitle: const Text(
-                      'Count the drawer and save the difference',
+                    leading: const Icon(Icons.lock_outline_rounded),
+                    title: Text(s.lockSwitchUser),
+                    subtitle: Text(s.lockSwitchUserHint),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () async {
+                      if (staff.id != null) {
+                        await DatabaseHelper().recordStaffActivity(
+                          staffId: staff.id!,
+                          action: 'signed_out',
+                          entityType: 'session',
+                          summary: 'Signed out',
+                        );
+                      }
+                      if (!context.mounted) return;
+                      ref.read(activeStaffProvider.notifier).state = null;
+                      ref.read(selectedTabProvider.notifier).state = 0;
+                      context.go('/');
+                    },
+                  ),
+                ),
+                BiometricLoginSettingsTile(staffId: staff.id, strings: s),
+                if (isOwner) ...[
+                  const SizedBox(height: 10),
+                  _buildQuickAccess(context, ref, s),
+                  const SizedBox(height: 10),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.point_of_sale_rounded),
+                      title: const Text('Daily cash close'),
+                      subtitle: const Text(
+                        'Count the drawer and save the difference',
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => context.push('/cash-close'),
                     ),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () => context.push('/cash-close'),
                   ),
-                ),
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.admin_panel_settings_outlined),
-                    title: const Text('Staff access'),
-                    subtitle: const Text('Manage owner and cashier PINs'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () => context.push('/settings/staff'),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.receipt_long_outlined),
+                      title: Text(s.customizeReceipt),
+                      subtitle: Text(s.receiptDesignSubtitle),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => context.push('/settings/receipt-design'),
+                    ),
                   ),
-                ),
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.cloud_sync_outlined),
-                    title: const Text('Cloud sync'),
-                    subtitle: const Text('Connect this shop to another device'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () => context.push('/settings/cloud-sync'),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.admin_panel_settings_outlined),
+                      title: const Text('Staff access'),
+                      subtitle: Text(s.staffAccessSubtitle),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => context.push('/settings/staff'),
+                    ),
                   ),
-                ),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.history_rounded),
+                      title: Text(s.employeeActivity),
+                      subtitle: Text(s.employeeActivitySubtitle),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => context.push('/settings/activity'),
+                    ),
+                  ),
+                  Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.cloud_sync_outlined),
+                      title: const Text('Cloud sync'),
+                      subtitle: const Text(
+                        'Connect this shop to another device',
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => context.push('/settings/cloud-sync'),
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 _sectionLabel(s.preferences, isDark),
                 const SizedBox(height: 10),
-                _buildPreferencesCard(context, ref, settings, s, isDark),
-                const SizedBox(height: 20),
-                _sectionLabel(s.posSettingsLabel, isDark),
-                const SizedBox(height: 10),
-                _buildPosCard(context, ref, settings, s, isDark),
-                const SizedBox(height: 20),
-                _sectionLabel(s.dataManagement, isDark),
-                const SizedBox(height: 10),
-                _buildDataCard(context, ref, s, isDark),
+                _buildPreferencesCard(
+                  context,
+                  ref,
+                  settings,
+                  s,
+                  isDark,
+                  showCurrency: isOwner,
+                ),
+                if (isOwner) ...[
+                  const SizedBox(height: 20),
+                  _sectionLabel(s.posSettingsLabel, isDark),
+                  const SizedBox(height: 10),
+                  _buildPosCard(context, ref, settings, s, isDark),
+                  const SizedBox(height: 20),
+                  _sectionLabel(s.dataManagement, isDark),
+                  const SizedBox(height: 10),
+                  _buildDataCard(context, ref, s, isDark),
+                ],
                 const SizedBox(height: 20),
                 _sectionLabel(s.about, isDark),
                 const SizedBox(height: 10),
@@ -103,6 +173,7 @@ class SettingsScreen extends ConsumerWidget {
     AppStrings s,
     SettingsState settings, {
     required bool showBackButton,
+    required bool canEditShop,
   }) {
     return Container(
       padding: EdgeInsets.only(
@@ -174,12 +245,14 @@ class SettingsScreen extends ConsumerWidget {
                     ),
                     const SizedBox(height: 4),
                     InkWell(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ShopSetupScreen(),
-                        ),
-                      ),
+                      onTap: canEditShop
+                          ? () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const ShopSetupScreen(),
+                              ),
+                            )
+                          : null,
                       borderRadius: BorderRadius.circular(6),
                       child: Padding(
                         padding: const EdgeInsets.symmetric(vertical: 2),
@@ -473,9 +546,10 @@ class SettingsScreen extends ConsumerWidget {
     WidgetRef ref,
     SettingsState settings,
     AppStrings s,
-    bool isDark,
-  ) {
-    return _buildCard(context, [
+    bool isDark, {
+    bool showCurrency = true,
+  }) {
+    final children = <Widget>[
       _tile(
         context: context,
         icon: Icons.language_rounded,
@@ -491,6 +565,7 @@ class SettingsScreen extends ConsumerWidget {
         iconColor: const Color(0xFF7C3AED),
         title: s.darkMode,
         isDark: isDark,
+        isLast: !showCurrency,
         trailing: Transform.scale(
           scale: 0.85,
           child: Switch(
@@ -501,18 +576,23 @@ class SettingsScreen extends ConsumerWidget {
         ),
         onTap: () => ref.read(settingsProvider.notifier).toggleTheme(),
       ),
-      _tile(
-        context: context,
-        icon: Icons.currency_exchange_rounded,
-        iconColor: const Color(0xFF059669),
-        title: s.currencyLabel,
-        subtitle: _currencyLabel(settings.currencySymbol),
-        isDark: isDark,
-        isLast: true,
-        onTap: () =>
-            _showCurrencyDialog(context, ref, settings.currencySymbol, s),
-      ),
-    ], isDark);
+    ];
+    if (showCurrency) {
+      children.add(
+        _tile(
+          context: context,
+          icon: Icons.currency_exchange_rounded,
+          iconColor: const Color(0xFF059669),
+          title: s.currencyLabel,
+          subtitle: _currencyLabel(settings.currencySymbol),
+          isDark: isDark,
+          isLast: true,
+          onTap: () =>
+              _showCurrencyDialog(context, ref, settings.currencySymbol, s),
+        ),
+      );
+    }
+    return _buildCard(context, children, isDark);
   }
 
   // ── POS Settings card ─────────────────────────────────────────────────────

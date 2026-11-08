@@ -44,7 +44,8 @@ class StaffAccess {
   }) async {
     final selectedPinLength = pinLength ?? pin.length;
     _validatePin(pin, selectedPinLength);
-    if (name.trim().isEmpty || !{'owner', 'cashier'}.contains(role)) {
+    if (name.trim().isEmpty ||
+        !RegExp(r'^(owner|[a-z][a-z0-9_]{1,47})$').hasMatch(role)) {
       throw ArgumentError('Enter a name and choose a valid staff role.');
     }
     if ((await _db.getStaffUsers()).isEmpty && role != 'owner') {
@@ -68,6 +69,12 @@ class StaffAccess {
       if (staff.id == id &&
           (staff.pinLength == 0 || staff.pinLength == pin.length) &&
           _constantTimeEquals(_hash(pin, staff.pinSalt), staff.pinHash)) {
+        await _db.recordStaffActivity(
+          staffId: id,
+          action: 'signed_in',
+          entityType: 'session',
+          summary: 'Signed in',
+        );
         if (staff.pinLength == 0) {
           final knownLength = {4, 6}.contains(pin.length) ? pin.length : 0;
           if (knownLength != 0) {
@@ -91,8 +98,26 @@ class StaffAccess {
     return null;
   }
 
+  Future<StaffUser?> authenticateBiometric(int id) async {
+    for (final staff in await _db.getStaffUsers(activeOnly: true)) {
+      if (staff.id == id) {
+        await _db.recordStaffActivity(
+          staffId: id,
+          action: 'signed_in',
+          entityType: 'session',
+          summary: 'Signed in with biometrics',
+        );
+        return staff;
+      }
+    }
+    return null;
+  }
+
   Future<void> setActive(int id, bool active) =>
       _db.setStaffUserActive(id, active);
+
+  Future<void> setRole(int id, String role) =>
+      _db.updateStaffUserRole(id, role);
 
   Future<void> resetPin(int id, String pin, {int? pinLength}) async {
     final selectedPinLength = pinLength ?? pin.length;

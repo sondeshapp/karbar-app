@@ -5,6 +5,7 @@ import '../../db/database_helper.dart';
 import '../../models/baki_payment.dart';
 import '../../models/sale.dart';
 import '../../providers/baki_provider.dart';
+import '../../providers/staff_provider.dart';
 
 class CustomerDetailScreen extends ConsumerWidget {
   final CustomerBakiSummary summary;
@@ -357,6 +358,7 @@ class CustomerDetailScreen extends ConsumerWidget {
                         note: noteCtrl.text.trim(),
                         paidAt: DateTime.now(),
                       ),
+                      staffId: ref.read(activeStaffProvider)?.id,
                     );
                     ref.read(bakiRefreshProvider.notifier).state++;
                     if (ctx.mounted) Navigator.pop(ctx);

@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../models/product.dart';
 import '../../models/product_variant.dart';
 import '../../providers/warehouse_provider.dart';
+import '../../providers/staff_provider.dart';
 import '../../core/constants.dart';
 
 const _defaultCategories = [
@@ -210,14 +211,18 @@ class _ProductFormScreenState extends ConsumerState<ProductFormScreen> {
     );
 
     if (widget.product == null) {
-      await ref.read(warehouseProvider.notifier).addProduct(product);
+      await ref
+          .read(warehouseProvider.notifier)
+          .addProduct(product, staffId: ref.read(activeStaffProvider)?.id);
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('Product added')));
       }
     } else {
-      await ref.read(warehouseProvider.notifier).updateProduct(product);
+      await ref
+          .read(warehouseProvider.notifier)
+          .updateProduct(product, staffId: ref.read(activeStaffProvider)?.id);
       if (mounted) {
         ScaffoldMessenger.of(
           context,

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../models/product.dart';
 import '../../providers/warehouse_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/staff_provider.dart';
 import '../../widgets/product_tile.dart';
 import '../../widgets/empty_state.dart';
 
@@ -124,7 +125,12 @@ class _WarehouseScreenState extends ConsumerState<WarehouseScreen> {
         products: ref.read(warehouseProvider),
         onConfirm: (variantId, qty, costPrice) => ref
             .read(warehouseProvider.notifier)
-            .stockIn(variantId, qty, costPrice: costPrice),
+            .stockIn(
+              variantId,
+              qty,
+              costPrice: costPrice,
+              staffId: ref.read(activeStaffProvider)?.id,
+            ),
       ),
     );
   }

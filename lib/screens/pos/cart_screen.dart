@@ -627,7 +627,10 @@ class _CustomerPicker extends ConsumerWidget {
                 phone: phoneCtrl.text.trim(),
                 createdAt: DateTime.now(),
               );
-              final id = await DatabaseHelper().insertCustomer(customer);
+              final id = await DatabaseHelper().insertCustomer(
+                customer,
+                staffId: ref.read(activeStaffProvider)?.id,
+              );
               final saved = Customer(
                 id: id,
                 name: customer.name,
