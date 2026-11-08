@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../models/product.dart';
 import '../providers/warehouse_provider.dart';
+import '../providers/staff_provider.dart';
 import '../core/constants.dart';
 import '../core/quantity_format.dart';
 
@@ -125,7 +126,12 @@ class ProductTile extends ConsumerWidget {
       ),
     );
     if (confirmed == true && product.id != null) {
-      await ref.read(warehouseProvider.notifier).deleteProduct(product.id!);
+      await ref
+          .read(warehouseProvider.notifier)
+          .deleteProduct(
+            product.id!,
+            staffId: ref.read(activeStaffProvider)?.id,
+          );
       if (context.mounted) {
         ScaffoldMessenger.of(
           context,

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_strings.dart';
 import '../../models/staff_user.dart';
+import '../../providers/biometric_login_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/staff_provider.dart';
 import '../../widgets/recovery_code_dialog.dart';
@@ -80,123 +81,163 @@ class _StaffGateScreenState extends ConsumerState<StaffGateScreen>
       child: Scaffold(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         body: SafeArea(
-          child: LayoutBuilder(
-            builder: (context, constraints) => Stack(
-              children: [
-                if (isOwnerSetup)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: Opacity(
-                        opacity: Theme.of(context).brightness == Brightness.dark
-                            ? 0.035
-                            : 0.065,
-                        child: Image.asset(
-                          'assets/onboarding_market_pattern.png',
-                          scale: 2.4,
-                          repeat: ImageRepeat.repeat,
-                          fit: BoxFit.none,
-                          alignment: Alignment.topLeft,
-                        ),
-                      ),
-                    ),
-                  ),
-                SingleChildScrollView(
-                  padding: isOwnerSetup
-                      ? const EdgeInsets.fromLTRB(20, 16, 20, 28)
-                      : const EdgeInsets.fromLTRB(22, 14, 22, 18),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      minHeight: math.max(0, constraints.maxHeight - 32),
-                    ),
-                    child: Align(
-                      alignment: Alignment.topCenter,
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: isOwnerSetup ? 520 : 420,
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              FadeTransition(
-                                opacity: _fade,
-                                child: isOwnerSetup
-                                    ? OnboardingStepHeader(
-                                        step: 2,
-                                        stepLabel: s.ownerSetupStep,
-                                        title: s.ownerPinTitle,
-                                        subtitle: s.ownerPinSubtitle,
-                                        shopName: settings.shopName,
-                                        trailing: _languageButton(
-                                          context,
-                                          settings.language,
-                                          s,
-                                        ),
-                                      )
-                                    : _brandRow(
-                                        context,
-                                        settings.shopName,
-                                        settings.language,
-                                        s,
-                                      ),
+          child: accounts.maybeWhen(
+            data: (hasAccounts) => hasAccounts
+                ? _loginScreen(s, settings.shopName, settings.language)
+                : LayoutBuilder(
+                    builder: (context, constraints) => Stack(
+                      children: [
+                        if (isOwnerSetup)
+                          Positioned.fill(
+                            child: IgnorePointer(
+                              child: Opacity(
+                                opacity:
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? 0.035
+                                    : 0.065,
+                                child: Image.asset(
+                                  'assets/onboarding_market_pattern.png',
+                                  scale: 2.4,
+                                  repeat: ImageRepeat.repeat,
+                                  fit: BoxFit.none,
+                                  alignment: Alignment.topLeft,
+                                ),
                               ),
-                              const SizedBox(height: 22),
-                              FadeTransition(
-                                opacity: _fade,
-                                child: SlideTransition(
-                                  position: _slide,
-                                  child: AnimatedSwitcher(
-                                    duration: const Duration(milliseconds: 320),
-                                    switchInCurve: Curves.easeOutCubic,
-                                    switchOutCurve: Curves.easeIn,
-                                    transitionBuilder: (child, animation) =>
-                                        FadeTransition(
-                                          opacity: animation,
-                                          child: SlideTransition(
-                                            position: Tween<Offset>(
-                                              begin: const Offset(0, 0.025),
-                                              end: Offset.zero,
-                                            ).animate(animation),
-                                            child: child,
+                            ),
+                          ),
+                        SingleChildScrollView(
+                          padding: isOwnerSetup
+                              ? const EdgeInsets.fromLTRB(20, 16, 20, 28)
+                              : const EdgeInsets.fromLTRB(22, 14, 22, 18),
+                          child: ConstrainedBox(
+                            constraints: BoxConstraints(
+                              minHeight: math.max(
+                                0,
+                                constraints.maxHeight - 32,
+                              ),
+                            ),
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: Padding(
+                                padding: const EdgeInsets.only(top: 4),
+                                child: ConstrainedBox(
+                                  constraints: BoxConstraints(
+                                    maxWidth: isOwnerSetup ? 520 : 420,
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      FadeTransition(
+                                        opacity: _fade,
+                                        child: isOwnerSetup
+                                            ? OnboardingStepHeader(
+                                                step: 2,
+                                                stepLabel: s.ownerSetupStep,
+                                                title: s.ownerPinTitle,
+                                                subtitle: s.ownerPinSubtitle,
+                                                shopName: settings.shopName,
+                                                trailing: _languageButton(
+                                                  context,
+                                                  settings.language,
+                                                  s,
+                                                ),
+                                              )
+                                            : _brandRow(
+                                                context,
+                                                settings.shopName,
+                                                settings.language,
+                                                s,
+                                              ),
+                                      ),
+                                      const SizedBox(height: 22),
+                                      FadeTransition(
+                                        opacity: _fade,
+                                        child: SlideTransition(
+                                          position: _slide,
+                                          child: AnimatedSwitcher(
+                                            duration: const Duration(
+                                              milliseconds: 320,
+                                            ),
+                                            switchInCurve: Curves.easeOutCubic,
+                                            switchOutCurve: Curves.easeIn,
+                                            transitionBuilder:
+                                                (child, animation) =>
+                                                    FadeTransition(
+                                                      opacity: animation,
+                                                      child: SlideTransition(
+                                                        position: Tween<Offset>(
+                                                          begin: const Offset(
+                                                            0,
+                                                            0.025,
+                                                          ),
+                                                          end: Offset.zero,
+                                                        ).animate(animation),
+                                                        child: child,
+                                                      ),
+                                                    ),
+                                            child: accounts.when(
+                                              loading: () => _form(
+                                                key: const ValueKey(
+                                                  'loading-accounts',
+                                                ),
+                                                icon: Icons.storefront_outlined,
+                                                title: s.enterStaffPinTitle,
+                                                subtitle: s.pleaseWait,
+                                                children: const [
+                                                  Center(
+                                                    child:
+                                                        CircularProgressIndicator(),
+                                                  ),
+                                                ],
+                                              ),
+                                              error: (error, _) => _form(
+                                                key: const ValueKey(
+                                                  'accounts-load-error',
+                                                ),
+                                                icon:
+                                                    Icons.error_outline_rounded,
+                                                title:
+                                                    s.staffAccountsLoadFailed,
+                                                subtitle: s.staffSignInSubtitle,
+                                                children: const [],
+                                              ),
+                                              data: (hasAccounts) => hasAccounts
+                                                  ? _loginForm(s)
+                                                  : _firstOwnerForm(s),
+                                            ),
                                           ),
                                         ),
-                                    child: accounts.when(
-                                      loading: () => _form(
-                                        key: const ValueKey('loading-accounts'),
-                                        icon: Icons.storefront_outlined,
-                                        title: s.enterStaffPinTitle,
-                                        subtitle: s.pleaseWait,
-                                        children: const [
-                                          Center(
-                                            child: CircularProgressIndicator(),
-                                          ),
-                                        ],
                                       ),
-                                      error: (error, _) => _form(
-                                        key: const ValueKey(
-                                          'accounts-load-error',
-                                        ),
-                                        icon: Icons.error_outline_rounded,
-                                        title: s.staffAccountsLoadFailed,
-                                        subtitle: s.staffSignInSubtitle,
-                                        children: const [],
-                                      ),
-                                      data: (hasAccounts) => hasAccounts
-                                          ? _loginForm(s)
-                                          : _firstOwnerForm(s),
-                                    ),
+                                    ],
                                   ),
                                 ),
                               ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
+                      ],
+                    ),
+                  ),
+            orElse: () => LayoutBuilder(
+              builder: (context, constraints) => Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: _form(
+                      key: const ValueKey('accounts-loading'),
+                      icon: Icons.storefront_outlined,
+                      title: s.enterStaffPinTitle,
+                      subtitle: s.pleaseWait,
+                      children: const [
+                        Center(child: CircularProgressIndicator()),
+                      ],
                     ),
                   ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -386,6 +427,7 @@ class _StaffGateScreenState extends ConsumerState<StaffGateScreen>
               icon: _busy ? _buttonProgress() : const Icon(Icons.lock_open),
               label: Text(_busy ? s.pleaseWait : s.unlockButton),
             ),
+            _biometricLoginButton(selectedUser, s),
             Align(
               alignment: Alignment.center,
               child: TextButton.icon(
@@ -413,6 +455,304 @@ class _StaffGateScreenState extends ConsumerState<StaffGateScreen>
           ],
         );
       },
+    );
+  }
+
+  Widget _loginScreen(AppStrings s, String shopName, String language) {
+    final colors = Theme.of(context).colorScheme;
+    final staffAsync = ref.watch(activeStaffListProvider);
+    return staffAsync.when(
+      loading: () =>
+          Center(child: CircularProgressIndicator(color: colors.primary)),
+      error: (error, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(s.staffLoadFailed, textAlign: TextAlign.center),
+        ),
+      ),
+      data: (staff) {
+        if (staff.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Text(s.noActiveStaffSubtitle, textAlign: TextAlign.center),
+            ),
+          );
+        }
+        final selectedId = staff.any((user) => user.id == _selectedId)
+            ? _selectedId
+            : staff.first.id;
+        final selected = staff.firstWhere((user) => user.id == selectedId);
+        final pinLength = {4, 6}.contains(selected.pinLength)
+            ? selected.pinLength
+            : _legacyPinLength;
+        return Column(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(22, 12, 22, 16),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          SizedBox.square(
+                            dimension: 38,
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(10),
+                              child: Image.asset('assets/karbar_app_icon.png'),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Karbar',
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.4,
+                                ),
+                          ),
+                          const Spacer(),
+                          _languageButton(context, language, s),
+                        ],
+                      ),
+                      const SizedBox(height: 28),
+                      Text(
+                        s.loginTitle,
+                        style: Theme.of(context).textTheme.headlineMedium
+                            ?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.6,
+                            ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        s.loginToShop(shopName),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(color: colors.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 30),
+                      Text(
+                        s.staffMemberLabel,
+                        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(10),
+                        onTap: staff.length > 1
+                            ? () => _chooseStaff(staff, selected, s)
+                            : null,
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      selected.name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    Text(
+                                      s.staffRoleLabel(selected.role),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: colors.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              if (staff.length > 1)
+                                Icon(
+                                  Icons.unfold_more_rounded,
+                                  color: colors.primary,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      Divider(height: 1, color: colors.outlineVariant),
+                      const SizedBox(height: 26),
+                      Row(
+                        children: [
+                          Expanded(child: _loginPinEntry(s, pinLength)),
+                        ],
+                      ),
+                      _biometricLoginButton(selected, s),
+                      if (!{4, 6}.contains(selected.pinLength)) ...[
+                        const SizedBox(height: 4),
+                        _legacyPinLengthPicker(s),
+                      ],
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton(
+                          onPressed: _busy
+                              ? null
+                              : selected.isOwner && selected.id != null
+                              ? () => _recoverOwnerPin(
+                                  s,
+                                  selected.id!,
+                                  selected.pinLength == 6 ? 6 : 4,
+                                )
+                              : () => setState(
+                                  () => _error = s.askOwnerToResetPin,
+                                ),
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 0,
+                              vertical: 10,
+                            ),
+                            foregroundColor: colors.primary,
+                          ),
+                          child: Text(
+                            selected.isOwner
+                                ? s.forgotPin
+                                : s.askOwnerToResetPin,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            _loginKeypadPanel(s, staff, selectedId, pinLength),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _loginKeypadPanel(
+    AppStrings s,
+    List<StaffUser> staff,
+    int? selectedId,
+    int pinLength,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    final canUnlock = !_busy && !_isLockedOut && _pin.text.length == pinLength;
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: colors.surfaceContainerHighest.withAlpha(150),
+        border: Border(top: BorderSide(color: colors.outlineVariant)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SizedBox(
+              height: 48,
+              child: Material(
+                color: canUnlock ? colors.primary : colors.outline,
+                child: InkWell(
+                  onTap: canUnlock ? () => _login(staff, selectedId, s) : null,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 18),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _busy ? s.pleaseWait : s.unlockButton,
+                            style: TextStyle(
+                              color: colors.onPrimary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Icon(
+                          Icons.arrow_forward_rounded,
+                          color: colors.onPrimary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final keyHeight = math.min(52.0, constraints.maxWidth / 7.2);
+                const rows = [
+                  ['1', '2', '3'],
+                  ['4', '5', '6'],
+                  ['7', '8', '9'],
+                  ['delete', '0', 'blank'],
+                ];
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(18, 8, 18, 5),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 390),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          for (final row in rows)
+                            SizedBox(
+                              height: keyHeight,
+                              child: Row(
+                                children: [
+                                  for (final key in row)
+                                    Expanded(
+                                      child: key == 'blank'
+                                          ? const SizedBox.shrink()
+                                          : IconButton(
+                                              onPressed: _busy || _isLockedOut
+                                                  ? null
+                                                  : () => key == 'delete'
+                                                        ? _deletePinDigit()
+                                                        : _appendPinDigit(
+                                                            key,
+                                                            maxLength:
+                                                                pinLength,
+                                                          ),
+                                              icon: key == 'delete'
+                                                  ? const Icon(
+                                                      Icons.backspace_outlined,
+                                                    )
+                                                  : Text(
+                                                      key,
+                                                      style: Theme.of(context)
+                                                          .textTheme
+                                                          .headlineSmall
+                                                          ?.copyWith(
+                                                            color: colors
+                                                                .onSurface,
+                                                            fontWeight:
+                                                                FontWeight.w600,
+                                                          ),
+                                                    ),
+                                            ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -597,102 +937,27 @@ class _StaffGateScreenState extends ConsumerState<StaffGateScreen>
   );
 
   Widget _loginPinEntry(AppStrings s, int pinLength) {
-    final colors = Theme.of(context).colorScheme;
     final hasLoginError = _error != null && _error != s.askOwnerToResetPin;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Semantics(
-          button: true,
-          label: s.pinLabel,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              const gap = 8.0;
-              final size = math.min(
-                48.0,
-                (constraints.maxWidth - (pinLength - 1) * gap) / pinLength,
-              );
-              return Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(pinLength, (index) {
-                    final filled = index < _pin.text.length;
-                    final active = index == _pin.text.length && !filled;
-                    return Padding(
-                      padding: EdgeInsets.only(
-                        right: index == pinLength - 1 ? 0 : gap,
-                      ),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 130),
-                        width: size,
-                        height: size,
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: colors.surface,
-                          shape: BoxShape.circle,
-                          boxShadow: active
-                              ? [
-                                  BoxShadow(
-                                    color: colors.primary.withAlpha(35),
-                                    blurRadius: 0,
-                                    spreadRadius: 2,
-                                  ),
-                                ]
-                              : null,
-                          border: Border.all(
-                            color: hasLoginError
-                                ? colors.error
-                                : filled || active
-                                ? colors.primary
-                                : colors.outlineVariant,
-                            width: filled || active ? 1.5 : 1,
-                          ),
-                        ),
-                        child: filled
-                            ? Text(
-                                _showPin ? _pin.text[index] : '•',
-                                style: TextStyle(
-                                  color: colors.onSurface,
-                                  fontSize: _showPin ? 22 : 25,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              )
-                            : null,
-                      ),
-                    );
-                  }),
-                ),
-              );
-            },
+    return TextField(
+      controller: _pin,
+      readOnly: true,
+      obscureText: !_showPin,
+      maxLength: pinLength,
+      decoration: InputDecoration(
+        labelText: s.pinLabel,
+        prefixIcon: const Icon(Icons.dialpad_rounded),
+        errorText: hasLoginError ? _error : null,
+        counterText: '',
+        suffixIcon: IconButton(
+          tooltip: _showPin ? s.hidePin : s.showPin,
+          onPressed: () => setState(() => _showPin = !_showPin),
+          icon: Icon(
+            _showPin
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
           ),
         ),
-        const SizedBox(height: 4),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                _error ?? s.pinLabel,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: !hasLoginError
-                      ? colors.onSurfaceVariant
-                      : colors.error,
-                ),
-              ),
-            ),
-            IconButton(
-              visualDensity: VisualDensity.compact,
-              tooltip: _showPin ? s.hidePin : s.showPin,
-              onPressed: () => setState(() => _showPin = !_showPin),
-              icon: Icon(
-                _showPin
-                    ? Icons.visibility_off_outlined
-                    : Icons.visibility_outlined,
-                size: 20,
-              ),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
   }
 
@@ -1149,6 +1414,64 @@ class _StaffGateScreenState extends ConsumerState<StaffGateScreen>
         _pin.clear();
         setState(() => _busy = false);
       }
+    }
+  }
+
+  Widget _biometricLoginButton(StaffUser staff, AppStrings strings) {
+    final staffId = staff.id;
+    if (staffId == null) return const SizedBox.shrink();
+    final service = ref.read(biometricLoginProvider);
+    return FutureBuilder<bool>(
+      future: service.canUseFor(staffId),
+      builder: (context, snapshot) {
+        if (snapshot.data != true) return const SizedBox.shrink();
+        return Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: OutlinedButton.icon(
+            onPressed: _busy
+                ? null
+                : () => _loginWithBiometrics(staffId, strings),
+            icon: const Icon(Icons.fingerprint_rounded),
+            label: Text(strings.useBiometrics),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _loginWithBiometrics(int staffId, AppStrings strings) async {
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      final verified = await ref
+          .read(biometricLoginProvider)
+          .authenticate(strings.biometricLoginReason);
+      if (!mounted) return;
+      if (!verified) {
+        setState(() => _error = strings.biometricLoginFailed);
+        return;
+      }
+      final user = await ref.read(staffProvider).authenticateBiometric(staffId);
+      if (!mounted) return;
+      if (user == null) {
+        setState(() => _error = strings.biometricAccountUnavailable);
+        ref.invalidate(activeStaffListProvider);
+        return;
+      }
+      _failedAttempts = 0;
+      _blockedUntil = null;
+      _lockoutTimer?.cancel();
+      _lockoutTimer = null;
+      ref.read(activeStaffProvider.notifier).state = user;
+    } catch (_) {
+      if (mounted) setState(() => _error = strings.biometricLoginFailed);
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
   }
 

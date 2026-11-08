@@ -9,6 +9,7 @@ import '../../models/product_variant.dart';
 import '../../models/supplier.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/warehouse_provider.dart';
+import '../../providers/staff_provider.dart';
 import '../../core/quantity_format.dart';
 
 class SupplierPurchaseScreen extends ConsumerStatefulWidget {
@@ -102,7 +103,10 @@ class _SupplierPurchaseScreenState
     address.dispose();
     notes.dispose();
     if (supplier == null) return;
-    await _db.saveSupplier(supplier);
+    await _db.saveSupplier(
+      supplier,
+      staffId: ref.read(activeStaffProvider)?.id,
+    );
     await _load();
     if (mounted) {
       ScaffoldMessenger.of(
@@ -132,6 +136,7 @@ class _SupplierPurchaseScreenState
         supplier: draft.supplier,
         items: draft.lines,
         note: draft.note,
+        staffId: ref.read(activeStaffProvider)?.id,
       );
       await ref.read(warehouseProvider.notifier).loadProducts();
       await _load();

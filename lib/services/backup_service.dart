@@ -31,7 +31,7 @@ class ProductImageAsset {
 
 class BackupService {
   static const formatName = 'karbar-pos-backup';
-  static const formatVersion = 13;
+  static const formatVersion = 14;
 
   final DatabaseHelper _db;
   final Future<Directory> Function()? documentsDirectoryProvider;
@@ -88,6 +88,7 @@ class BackupService {
             decoded['version'] != 10 &&
             decoded['version'] != 11 &&
             decoded['version'] != 12 &&
+            decoded['version'] != 13 &&
             decoded['version'] != formatVersion)) {
       throw const FormatException(
         'This file is not a supported Karbar backup.',
@@ -131,6 +132,9 @@ class BackupService {
     if (backupVersion < 6) expected.remove('daily_closes');
     if (backupVersion < 8) expected.remove('staff_users');
     if (backupVersion < 9) expected.remove('sync_outbox');
+    if (backupVersion < 14 && !rawTables.containsKey('staff_activity')) {
+      expected.remove('staff_activity');
+    }
     if (rawTables.keys.toSet().difference(expected).isNotEmpty ||
         expected.difference(rawTables.keys.toSet()).isNotEmpty) {
       throw const FormatException(
@@ -145,6 +149,7 @@ class BackupService {
       const tablesAddedInV6 = {'daily_closes'};
       const tablesAddedInV8 = {'staff_users'};
       const tablesAddedInV9 = {'sync_outbox'};
+      const tablesAddedInV14 = {'staff_activity'};
       final rows =
           rawTables[table] ??
           ((backupVersion == 1 && table == 'sale_payments') ||
@@ -152,7 +157,8 @@ class BackupService {
                   (backupVersion < 4 && tablesAddedInV4.contains(table)) ||
                   (backupVersion < 6 && tablesAddedInV6.contains(table)) ||
                   (backupVersion < 8 && tablesAddedInV8.contains(table)) ||
-                  (backupVersion < 9 && tablesAddedInV9.contains(table))
+                  (backupVersion < 9 && tablesAddedInV9.contains(table)) ||
+                  (backupVersion < 14 && tablesAddedInV14.contains(table))
               ? <dynamic>[]
               : null);
       if (rows is! List) {

@@ -54,7 +54,7 @@ void main() {
       await notifier.load();
 
       expect(notifier.state.themeMode, ThemeMode.light);
-      expect(notifier.state.currencySymbol, r'$');
+      expect(notifier.state.currencySymbol, '৳');
       expect(notifier.state.taxRate, 0);
       expect(notifier.state.setupComplete, isFalse);
     },

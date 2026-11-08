@@ -1,7 +1,7 @@
 name: m_pos
 description: "Karbar POS application."
 publish_to: 'none'
-version: 1.1.0+2
+version: 1.2.0+3
 
 environment:
   sdk: ^3.12.2
@@ -29,6 +29,7 @@ dependencies:
   workmanager: ^0.7.0
   file_selector: ^1.1.0
   share_plus: ^13.3.1
+  local_auth: ^3.0.2
 
 dev_dependencies:
   flutter_test:
@@ -39,9 +40,9 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/karbar_logo.png"
-  adaptive_icon_background: "#FFFFFF"
-  adaptive_icon_foreground: "assets/karbar_logo.png"
+  image_path: "assets/karbar_app_icon.png"
+  adaptive_icon_background: "#0F5AEC"
+  adaptive_icon_foreground: "assets/karbar_app_icon.png"
   remove_alpha_ios: true
   min_sdk_android: 21
   web:
@@ -51,4 +52,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/karbar_logo.png
+    - assets/karbar_app_icon.png
     - assets/onboarding_market_pattern.png
+    - assets/fonts/NotoSansBengali-Regular.ttf
+    - assets/fonts/NotoSansBengali-Bold.ttf

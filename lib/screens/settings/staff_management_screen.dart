@@ -4,9 +4,12 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/app_strings.dart';
+import '../../db/database_helper.dart';
 import '../../models/staff_user.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/staff_provider.dart';
+import '../../providers/staff_roles_provider.dart';
+import '../../models/staff_role.dart';
 import '../../widgets/recovery_code_dialog.dart';
 
 class StaffManagementScreen extends ConsumerWidget {
@@ -16,6 +19,8 @@ class StaffManagementScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final current = ref.watch(activeStaffProvider);
     final s = ref.watch(stringsProvider);
+    final roleDefinitions =
+        ref.watch(staffRolesProvider).valueOrNull ?? const [];
     if (current?.isOwner != true) {
       return const Scaffold(
         body: Center(child: Text('Owner access is required.')),
@@ -26,6 +31,11 @@ class StaffManagementScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Staff access'),
         actions: [
+          IconButton(
+            tooltip: s.manageRoles,
+            onPressed: () => context.push('/settings/staff/roles'),
+            icon: const Icon(Icons.tune_rounded),
+          ),
           IconButton(
             tooltip: s.manageRecoveryCode,
             onPressed: () => _manageRecoveryCode(context, ref, current!, s),
@@ -38,7 +48,16 @@ class StaffManagementScreen extends ConsumerWidget {
           ),
           IconButton(
             tooltip: 'Lock and switch user',
-            onPressed: () {
+            onPressed: () async {
+              if (current?.id != null) {
+                await DatabaseHelper().recordStaffActivity(
+                  staffId: current!.id!,
+                  action: 'signed_out',
+                  entityType: 'session',
+                  summary: 'Signed out',
+                );
+              }
+              if (!context.mounted) return;
               ref.read(activeStaffProvider.notifier).state = null;
               context.go('/');
             },
@@ -80,11 +99,18 @@ class StaffManagementScreen extends ConsumerWidget {
                   ),
                   title: Text(user.name),
                   subtitle: Text(
-                    '${user.role} · ${user.active ? 'Active' : 'Disabled'}',
+                    '${_roleName(user.role, roleDefinitions, s)} · ${user.active ? 'Active' : 'Disabled'}',
                   ),
                   trailing: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
+                      IconButton(
+                        tooltip: s.roleManagement,
+                        icon: const Icon(Icons.manage_accounts_outlined),
+                        onPressed: user.isOwner
+                            ? null
+                            : () => _changeRole(context, ref, user, s),
+                      ),
                       IconButton(
                         tooltip: 'Reset PIN',
                         icon: const Icon(Icons.password_outlined),
@@ -112,6 +138,12 @@ class StaffManagementScreen extends ConsumerWidget {
     final s = ref.read(stringsProvider);
     final name = TextEditingController();
     final pin = TextEditingController();
+    final roles = await ref.read(staffRolesProvider.future);
+    if (!context.mounted) {
+      name.dispose();
+      pin.dispose();
+      return;
+    }
     var role = 'cashier';
     var pinLength = 4;
     final result = await showDialog<(String, String, String, int)>(
@@ -129,8 +161,12 @@ class StaffManagementScreen extends ConsumerWidget {
               DropdownButtonFormField<String>(
                 initialValue: role,
                 decoration: const InputDecoration(labelText: 'Role'),
-                items: const [
-                  DropdownMenuItem(value: 'cashier', child: Text('Cashier')),
+                items: [
+                  for (final item in roles)
+                    DropdownMenuItem(
+                      value: item.id,
+                      child: Text(_roleName(item.id, roles, s)),
+                    ),
                   DropdownMenuItem(value: 'owner', child: Text('Owner')),
                 ],
                 onChanged: (value) => setState(() => role = value ?? 'cashier'),
@@ -188,6 +224,75 @@ class StaffManagementScreen extends ConsumerWidget {
     } catch (error) {
       if (context.mounted) _message(context, _localizedErrorText(error, s));
     }
+  }
+
+  Future<void> _changeRole(
+    BuildContext context,
+    WidgetRef ref,
+    StaffUser user,
+    AppStrings strings,
+  ) async {
+    final roles = await ref.read(staffRolesProvider.future);
+    if (!context.mounted) return;
+    var selected = user.role;
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: Text(strings.roleManagement),
+          content: DropdownButtonFormField<String>(
+            initialValue: selected,
+            items: [
+              for (final role in roles)
+                DropdownMenuItem(
+                  value: role.id,
+                  child: Text(_roleName(role.id, roles, strings)),
+                ),
+              const DropdownMenuItem(value: 'owner', child: Text('Owner')),
+            ],
+            onChanged: (value) => setState(() => selected = value ?? selected),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(strings.historyCancel),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, selected),
+              child: Text(strings.save),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result == null || result == user.role) return;
+    try {
+      await ref.read(staffProvider).setRole(user.id!, result);
+      ref.invalidate(staffListProvider);
+      ref.invalidate(activeStaffListProvider);
+      if (user.id == ref.read(activeStaffProvider)?.id) {
+        ref.read(activeStaffProvider.notifier).state = null;
+        if (context.mounted) context.go('/');
+      }
+    } catch (error) {
+      if (context.mounted) _message(context, _errorText(error));
+    }
+  }
+
+  String _roleName(String id, List<StaffRole> roles, AppStrings strings) {
+    if (strings.isBn) {
+      switch (id) {
+        case 'owner':
+          return 'মালিক';
+        case 'cashier':
+          return 'ক্যাশিয়ার';
+        case 'inventory_manager':
+          return 'ইনভেন্টরি ম্যানেজার';
+        case 'accountant':
+          return 'হিসাবরক্ষক';
+      }
+    }
+    return roles.where((role) => role.id == id).firstOrNull?.name ?? 'Owner';
   }
 
   Future<void> _setActive(

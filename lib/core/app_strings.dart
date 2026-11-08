@@ -158,6 +158,10 @@ class AppStrings {
       ? 'অ্যাকাউন্ট চালু করতে মালিকের সঙ্গে যোগাযোগ করুন।'
       : 'Ask an owner to reactivate an account.';
   String get enterStaffPinTitle => isBn ? 'আপনার পিন লিখুন' : 'Enter your PIN';
+  String get loginTitle => isBn ? 'প্রবেশ করুন' : 'Log in';
+  String loginToShop(String name) => isBn
+      ? (name.isEmpty ? 'আপনার দোকানের অ্যাকাউন্টে' : '$name-এর অ্যাকাউন্টে')
+      : (name.isEmpty ? 'to your shop account' : 'to your $name account');
   String get selectStaffSubtitle => isBn
       ? 'চালিয়ে যেতে আপনার কর্মী অ্যাকাউন্ট বেছে নিন।'
       : 'Choose your staff account to continue.';
@@ -212,6 +216,160 @@ class AppStrings {
   String get staffAccountSaveFailed => isBn
       ? 'কর্মী অ্যাকাউন্ট সংরক্ষণ করা যায়নি। আবার চেষ্টা করুন।'
       : 'Could not save staff account. Please try again.';
+  String get manageRoles => isBn ? 'ভূমিকা পরিচালনা' : 'Manage roles';
+  String get roleManagement => isBn ? 'ভূমিকা ও অনুমতি' : 'Roles & permissions';
+  String get staffAccessSubtitle => isBn
+      ? 'কর্মী, ভূমিকা ও পিন পরিচালনা করুন'
+      : 'Manage staff, roles, and PIN access';
+  String get employeeActivity =>
+      isBn ? 'কর্মীর কাজের ইতিহাস' : 'Employee activity';
+  String get employeeActivitySubtitle => isBn
+      ? 'কর্মীদের বিক্রয়, স্টক ও অন্যান্য কাজ দেখুন'
+      : 'Review sales, stock changes, and other staff actions';
+  String get activityFilter =>
+      isBn ? 'কর্মী দিয়ে ফিল্টার করুন' : 'Filter by staff';
+  String get activityAllStaff => isBn ? 'সকল কর্মী' : 'All staff';
+  String get activityLoadFailed => isBn
+      ? 'কাজের ইতিহাস লোড করা যায়নি।'
+      : 'Could not load employee activity.';
+  String get activityEmpty =>
+      isBn ? 'এখনো কোনো কাজের ইতিহাস নেই।' : 'No activity recorded yet.';
+  String get refresh => isBn ? 'রিফ্রেশ' : 'Refresh';
+  String get staffOwnerRole => isBn ? 'মালিক' : 'Owner';
+  String get biometricLogin =>
+      isBn ? 'ফিঙ্গারপ্রিন্ট দিয়ে প্রবেশ' : 'Fingerprint login';
+  String get biometricLoginDescription => isBn
+      ? 'এই ডিভাইসে সংরক্ষিত বায়োমেট্রিক দিয়ে এই কর্মী অ্যাকাউন্টে প্রবেশ করুন'
+      : 'Use a biometric enrolled on this device to sign in to this staff account';
+  String get biometricLoginEnabled => isBn
+      ? 'ফিঙ্গারপ্রিন্ট দিয়ে প্রবেশ চালু আছে'
+      : 'Fingerprint login is enabled';
+  String get biometricLoginUnavailable => isBn
+      ? 'এই ডিভাইসে বায়োমেট্রিক সেট আপ করা নেই'
+      : 'No biometric is set up on this device';
+  String get useBiometrics =>
+      isBn ? 'ফিঙ্গারপ্রিন্ট ব্যবহার করুন' : 'Use fingerprint';
+  String get biometricLoginReason => isBn
+      ? 'আপনার পরিচয় নিশ্চিত করে প্রবেশ করুন'
+      : 'Verify your identity to sign in';
+  String get biometricSetupReason => isBn
+      ? 'ফিঙ্গারপ্রিন্ট দিয়ে প্রবেশ চালু করতে পরিচয় নিশ্চিত করুন'
+      : 'Verify your identity to enable fingerprint login';
+  String get biometricLoginFailed => isBn
+      ? 'বায়োমেট্রিক যাচাই হয়নি। পিন দিয়ে চেষ্টা করুন।'
+      : 'Biometric verification failed. Try your PIN instead.';
+  String get biometricAccountUnavailable => isBn
+      ? 'এই কর্মী অ্যাকাউন্টটি আর সক্রিয় নেই।'
+      : 'This staff account is no longer active.';
+  String staffActivityAction(String action) {
+    if (isBn) {
+      return switch (action) {
+        'signed_in' => 'সাইন ইন করেছেন',
+        'signed_out' => 'সাইন আউট করেছেন',
+        'sale_created' => 'বিক্রয় সম্পন্ন করেছেন',
+        'sale_returned' => 'পণ্য ফেরত নিয়েছেন',
+        'product_added' => 'পণ্য যোগ করেছেন',
+        'product_updated' => 'পণ্যের তথ্য আপডেট করেছেন',
+        'product_deleted' => 'পণ্য মুছে ফেলেছেন',
+        'stock_received' => 'স্টক যোগ করেছেন',
+        'supplier_added' => 'সরবরাহকারী যোগ করেছেন',
+        'supplier_updated' => 'সরবরাহকারীর তথ্য আপডেট করেছেন',
+        'purchase_recorded' => 'ক্রয় নথিভুক্ত করেছেন',
+        'customer_added' => 'গ্রাহক যোগ করেছেন',
+        'baki_payment_recorded' => 'বাকি পরিশোধ নথিভুক্ত করেছেন',
+        'cash_close_saved' => 'ক্যাশ ক্লোজ সংরক্ষণ করেছেন',
+        _ => action,
+      };
+    }
+    return switch (action) {
+      'signed_in' => 'Signed in',
+      'signed_out' => 'Signed out',
+      'sale_created' => 'Completed a sale',
+      'sale_returned' => 'Recorded a return',
+      'product_added' => 'Added a product',
+      'product_updated' => 'Updated a product',
+      'product_deleted' => 'Deleted a product',
+      'stock_received' => 'Received stock',
+      'supplier_added' => 'Added a supplier',
+      'supplier_updated' => 'Updated a supplier',
+      'purchase_recorded' => 'Recorded a purchase',
+      'customer_added' => 'Added a customer',
+      'baki_payment_recorded' => 'Recorded a baki payment',
+      'cash_close_saved' => 'Saved a cash close',
+      _ => action,
+    };
+  }
+
+  String get customizeReceipt =>
+      isBn ? 'রসিদ কাস্টমাইজ করুন' : 'Customize receipt';
+  String get receiptDesignSubtitle => isBn
+      ? 'কাগজের মাপ, লেআউট, লোগো ও ফুটার বেছে নিন'
+      : 'Choose paper size, layout, logo, and footer';
+  String get receiptPaperSize => isBn ? 'কাগজের মাপ' : 'Paper size';
+  String get receiptPaper58 => isBn ? '৫৮ মিমি' : '58 mm';
+  String get receiptPaper80 => isBn ? '৮০ মিমি' : '80 mm';
+  String get receiptPaperA4 => isBn ? 'এ৪' : 'A4';
+  String get receiptLayout => isBn ? 'লেআউট' : 'Layout';
+  String get receiptClassic => isBn ? 'ক্লাসিক' : 'Classic';
+  String get receiptCompact => isBn ? 'কমপ্যাক্ট' : 'Compact';
+  String get receiptLogo => isBn ? 'দোকানের লোগো' : 'Shop logo';
+  String get chooseReceiptLogo => isBn ? 'লোগো বেছে নিন' : 'Choose logo';
+  String get removeReceiptLogo => isBn ? 'লোগো সরান' : 'Remove logo';
+  String get receiptFooter => isBn ? 'রসিদের ফুটার' : 'Receipt footer';
+  String get receiptPreview => isBn ? 'প্রিভিউ' : 'Preview';
+  String get receiptSave =>
+      isBn ? 'রসিদ ডিজাইন সংরক্ষণ করুন' : 'Save receipt design';
+  String get receiptSaved =>
+      isBn ? 'রসিদ ডিজাইন সংরক্ষিত হয়েছে।' : 'Receipt design saved.';
+  String get receiptSaveFailed => isBn
+      ? 'রসিদ ডিজাইন সংরক্ষণ করা যায়নি।'
+      : 'Could not save receipt design.';
+  String get receiptLogoInvalid => isBn
+      ? 'ছবিটি খোলা যায়নি। অন্য ছবি বেছে নিন।'
+      : 'Could not open that image. Choose another one.';
+  String get receiptPreviewAfterSale => isBn
+      ? 'প্রিভিউ দেখতে প্রথম বিক্রয়টি সম্পন্ন করুন।'
+      : 'Complete a sale to preview the receipt here.';
+  String get lockSwitchUser =>
+      isBn ? 'লক করুন / ব্যবহারকারী বদলান' : 'Lock and switch user';
+  String get lockSwitchUserHint => isBn
+      ? 'পিন স্ক্রিনে ফিরে যান এবং অন্য কর্মী বেছে নিন।'
+      : 'Return to the PIN screen to choose another staff account.';
+  String get accessDeniedTitle => isBn ? 'প্রবেশাধিকার নেই' : 'Access denied';
+  String get accessDeniedMessage => isBn
+      ? 'এই অংশটি ব্যবহারের অনুমতি আপনার ভূমিকায় নেই।'
+      : 'Your role does not have access to this section.';
+  String get goBack => isBn ? 'ফিরে যান' : 'Go back';
+  String get roleName => isBn ? 'ভূমিকার নাম' : 'Role name';
+  String get customRole => isBn ? 'কাস্টম ভূমিকা' : 'Custom role';
+  String get builtInRole => isBn ? 'পূর্বনির্ধারিত' : 'Built-in';
+  String get permissionsLabel => isBn ? 'অনুমতি' : 'Permissions';
+  String get roleSaved => isBn ? 'ভূমিকা সংরক্ষিত হয়েছে।' : 'Role saved.';
+  String get roleDeleted => isBn ? 'ভূমিকা মুছে ফেলা হয়েছে।' : 'Role deleted.';
+  String get roleSaveFailed =>
+      isBn ? 'ভূমিকা সংরক্ষণ করা যায়নি।' : 'Could not save role.';
+  String get roleInUse => isBn
+      ? 'মুছে ফেলার আগে কর্মীদের অন্য ভূমিকায় দিন।'
+      : 'Reassign staff before deleting this role.';
+  String get deleteRole => isBn ? 'ভূমিকা মুছুন' : 'Delete role';
+  String get deleteRoleConfirm => isBn
+      ? 'এই ভূমিকা মুছে ফেলবেন? এই ভূমিকায় থাকা কর্মীদের আগে অন্য ভূমিকায় দিতে হবে।'
+      : 'Delete this role? Reassign staff using it before deleting.';
+  String get permissionPos => isBn ? 'বিক্রয় (POS)' : 'Sales (POS)';
+  String get permissionDashboard => isBn ? 'ড্যাশবোর্ড' : 'Dashboard';
+  String get permissionInventory => isBn ? 'ইনভেন্টরি' : 'Inventory';
+  String get permissionPurchases => isBn ? 'ক্রয়' : 'Purchases';
+  String get permissionHistory =>
+      isBn ? 'বিক্রয় ইতিহাস ও ফেরত' : 'Sales history & returns';
+  String get permissionCustomerCredit =>
+      isBn ? 'বাকি হিসেব' : 'Customer credit';
+  String get permissionReports => isBn ? 'রিপোর্ট' : 'Reports';
+  String get permissionCashClose =>
+      isBn ? 'দৈনিক ক্যাশ ক্লোজ' : 'Daily cash close';
+  String get noStaffPermissions => isBn
+      ? 'মালিকের কাছ থেকে আপনার জন্য অনুমতি চাইুন।'
+      : 'Ask the owner to grant access to a section.';
+  String get purchaseLabel => isBn ? 'ক্রয়' : 'Purchases';
   String get changeMyPin => isBn ? 'আমার পিন পরিবর্তন' : 'Change my PIN';
   String get currentPinLabel => isBn ? 'বর্তমান পিন' : 'Current PIN';
   String get newPinLabel =>

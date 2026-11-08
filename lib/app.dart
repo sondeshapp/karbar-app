@@ -28,30 +28,50 @@ import 'providers/staff_provider.dart';
 import 'screens/settings/staff_gate_screen.dart';
 import 'screens/settings/staff_management_screen.dart';
 import 'screens/settings/cloud_sync_screen.dart';
+import 'screens/settings/staff_roles_screen.dart';
+import 'screens/settings/receipt_design_screen.dart';
+import 'screens/settings/staff_activity_screen.dart';
+import 'models/staff_role.dart';
+import 'widgets/staff_permission_gate.dart';
+
+Widget _guarded(String permission, Widget child) =>
+    StaffPermissionGate(anyOf: [permission], child: child);
+
+Widget _guardedAny(List<String> permissions, Widget child) =>
+    StaffPermissionGate(anyOf: permissions, child: child);
 
 final _router = GoRouter(
   routes: [
     GoRoute(path: '/', builder: (context, state) => const AppEntryScreen()),
-    GoRoute(path: '/pos', builder: (context, state) => const PosScreen()),
+    GoRoute(
+      path: '/pos',
+      builder: (context, state) =>
+          _guarded(StaffPermission.pos, const PosScreen()),
+    ),
     GoRoute(
       path: '/warehouse',
-      builder: (context, state) => const WarehouseScreen(),
+      builder: (context, state) =>
+          _guarded(StaffPermission.inventory, const WarehouseScreen()),
     ),
     GoRoute(
       path: '/purchases',
-      builder: (context, state) => const SupplierPurchaseScreen(),
+      builder: (context, state) =>
+          _guarded(StaffPermission.purchases, const SupplierPurchaseScreen()),
     ),
     GoRoute(
       path: '/dashboard',
-      builder: (context, state) => const DashboardScreen(),
+      builder: (context, state) =>
+          _guarded(StaffPermission.dashboard, const DashboardScreen()),
     ),
     GoRoute(
       path: '/reports',
-      builder: (context, state) => const ReportsScreen(),
+      builder: (context, state) =>
+          _guarded(StaffPermission.reports, const ReportsScreen()),
     ),
     GoRoute(
       path: '/cash-close',
-      builder: (context, state) => const DailyCashCloseScreen(),
+      builder: (context, state) =>
+          _guarded(StaffPermission.cashClose, const DailyCashCloseScreen()),
     ),
     GoRoute(
       path: '/settings',
@@ -59,7 +79,8 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/settings/shop-profile',
-      builder: (context, state) => const ShopSetupScreen(),
+      builder: (context, state) =>
+          _guarded('owner_admin', const ShopSetupScreen()),
     ),
     GoRoute(
       path: '/onboarding/setup-shop',
@@ -67,55 +88,95 @@ final _router = GoRouter(
     ),
     GoRoute(
       path: '/settings/staff',
-      builder: (context, state) => const StaffManagementScreen(),
+      builder: (context, state) =>
+          _guarded('owner_admin', const StaffManagementScreen()),
+    ),
+    GoRoute(
+      path: '/settings/staff/roles',
+      builder: (context, state) =>
+          _guarded('owner_admin', const StaffRolesScreen()),
+    ),
+    GoRoute(
+      path: '/settings/activity',
+      builder: (context, state) =>
+          _guarded('owner_admin', const StaffActivityScreen()),
+    ),
+    GoRoute(
+      path: '/settings/receipt-design',
+      builder: (context, state) =>
+          _guarded('owner_admin', const ReceiptDesignScreen()),
     ),
     GoRoute(
       path: '/settings/cloud-sync',
-      builder: (context, state) => const CloudSyncScreen(),
+      builder: (context, state) =>
+          _guarded('owner_admin', const CloudSyncScreen()),
     ),
     GoRoute(
       path: '/history',
-      builder: (context, state) => const HistoryScreen(),
+      builder: (context, state) =>
+          _guarded(StaffPermission.history, const HistoryScreen()),
     ),
-    GoRoute(path: '/baki', builder: (context, state) => const BakiScreen()),
+    GoRoute(
+      path: '/baki',
+      builder: (context, state) =>
+          _guarded(StaffPermission.customerCredit, const BakiScreen()),
+    ),
     GoRoute(
       path: '/baki/customer',
       builder: (context, state) {
         final summary = state.extra as CustomerBakiSummary;
-        return CustomerDetailScreen(summary: summary);
+        return _guarded(
+          StaffPermission.customerCredit,
+          CustomerDetailScreen(summary: summary),
+        );
       },
     ),
     GoRoute(
       path: '/warehouse/scanner',
-      builder: (context, state) => const InventoryScannerScreen(),
+      builder: (context, state) =>
+          _guarded(StaffPermission.inventory, const InventoryScannerScreen()),
     ),
     GoRoute(
       path: '/warehouse/add',
       builder: (context, state) {
         // extra may be a String (barcode pre-fill from scan) or null (manual)
         final initialBarcode = state.extra as String?;
-        return ProductFormScreen(product: null, initialBarcode: initialBarcode);
+        return _guarded(
+          StaffPermission.inventory,
+          ProductFormScreen(product: null, initialBarcode: initialBarcode),
+        );
       },
     ),
     GoRoute(
       path: '/warehouse/edit',
       builder: (context, state) {
         final product = state.extra as Product;
-        return ProductFormScreen(product: product);
+        return _guarded(
+          StaffPermission.inventory,
+          ProductFormScreen(product: product),
+        );
       },
     ),
     GoRoute(
       path: '/pos/scanner',
-      builder: (context, state) => const ScannerScreen(),
+      builder: (context, state) =>
+          _guarded(StaffPermission.pos, const ScannerScreen()),
     ),
-    GoRoute(path: '/cart', builder: (context, state) => const CartScreen()),
+    GoRoute(
+      path: '/cart',
+      builder: (context, state) =>
+          _guarded(StaffPermission.pos, const CartScreen()),
+    ),
     GoRoute(
       path: '/receipt',
       builder: (context, state) {
         final sale = state.extra as Sale;
-        return ReceiptScreen(
-          sale: sale,
-          returnToHistory: state.uri.queryParameters['history'] == '1',
+        return _guardedAny(
+          [StaffPermission.pos, StaffPermission.history],
+          ReceiptScreen(
+            sale: sale,
+            returnToHistory: state.uri.queryParameters['history'] == '1',
+          ),
         );
       },
     ),

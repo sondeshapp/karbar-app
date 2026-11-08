@@ -7,12 +7,13 @@ import '../providers/dashboard_provider.dart';
 import '../providers/sales_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/staff_provider.dart';
+import '../models/staff_role.dart';
+import '../providers/staff_roles_provider.dart';
+import '../providers/home_navigation_provider.dart';
 import '../core/app_strings.dart';
 import '../models/sale.dart';
 import 'pos/pos_screen.dart';
 import 'settings/settings_screen.dart';
-
-final selectedTabProvider = StateProvider<int>((ref) => 0);
 
 // ── Shell ─────────────────────────────────────────────────────────────────────
 
@@ -26,7 +27,43 @@ class HomeScreen extends ConsumerWidget {
     final s = ref.watch(stringsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    if (staff?.isOwner == false) return const PosScreen();
+    if (staff?.isOwner != true) {
+      final rolesAsync = ref.watch(staffRolesProvider);
+      return rolesAsync.when(
+        loading: () =>
+            const Scaffold(body: Center(child: CircularProgressIndicator())),
+        error: (error, _) => const Scaffold(
+          body: Center(child: Text('Could not load staff permissions.')),
+        ),
+        data: (roles) {
+          final permissions = {
+            for (final role in roles)
+              if (role.id == staff?.role) ...role.permissions,
+          };
+          final canUsePos = permissions.contains(StaffPermission.pos);
+          final visibleTab = selectedTab == 1 && !canUsePos ? 0 : selectedTab;
+          return Scaffold(
+            extendBody: true,
+            body: IndexedStack(
+              index: visibleTab.clamp(0, 2),
+              children: [
+                _HomeHub(permissions: permissions),
+                if (canUsePos) const PosScreen() else const SizedBox.shrink(),
+                const SettingsScreen(),
+              ],
+            ),
+            bottomNavigationBar: _GlassNavBar(
+              selectedTab: visibleTab,
+              isDark: isDark,
+              strings: s,
+              showSettings: true,
+              showPos: canUsePos,
+              onTap: (i) => ref.read(selectedTabProvider.notifier).state = i,
+            ),
+          );
+        },
+      );
+    }
     return Scaffold(
       extendBody: true,
       body: IndexedStack(
@@ -48,17 +85,23 @@ class _GlassNavBar extends StatelessWidget {
   final bool isDark;
   final AppStrings strings;
   final ValueChanged<int> onTap;
+  final bool showSettings;
+  final bool showPos;
 
   const _GlassNavBar({
     required this.selectedTab,
     required this.isDark,
     required this.strings,
     required this.onTap,
+    this.showSettings = true,
+    this.showPos = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final primary = Theme.of(context).colorScheme.primary;
+    final tabIds = [0, if (showPos) 1, if (showSettings) 2];
+    final navIndex = tabIds.indexOf(selectedTab).clamp(0, tabIds.length - 1);
 
     return ClipRect(
       child: BackdropFilter(
@@ -87,7 +130,7 @@ class _GlassNavBar extends StatelessWidget {
           child: BottomNavigationBar(
             backgroundColor: Colors.transparent,
             elevation: 0,
-            currentIndex: selectedTab,
+            currentIndex: navIndex,
             type: BottomNavigationBarType.fixed,
             selectedItemColor: primary,
             unselectedItemColor: isDark
@@ -98,23 +141,25 @@ class _GlassNavBar extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
             unselectedLabelStyle: const TextStyle(fontSize: 11),
-            onTap: onTap,
+            onTap: (index) => onTap(tabIds[index]),
             items: [
               BottomNavigationBarItem(
                 icon: const Icon(Icons.home_outlined),
                 activeIcon: const Icon(Icons.home_rounded),
                 label: 'Home',
               ),
-              BottomNavigationBarItem(
-                icon: const Icon(Icons.point_of_sale_outlined),
-                activeIcon: const Icon(Icons.point_of_sale_rounded),
-                label: strings.navPos,
-              ),
-              BottomNavigationBarItem(
-                icon: const Icon(Icons.settings_outlined),
-                activeIcon: const Icon(Icons.settings_rounded),
-                label: strings.navSettings,
-              ),
+              if (showPos)
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.point_of_sale_outlined),
+                  activeIcon: const Icon(Icons.point_of_sale_rounded),
+                  label: strings.navPos,
+                ),
+              if (showSettings)
+                BottomNavigationBarItem(
+                  icon: const Icon(Icons.settings_outlined),
+                  activeIcon: const Icon(Icons.settings_rounded),
+                  label: strings.navSettings,
+                ),
             ],
           ),
         ),
@@ -126,7 +171,8 @@ class _GlassNavBar extends StatelessWidget {
 // ── Hub ───────────────────────────────────────────────────────────────────────
 
 class _HomeHub extends ConsumerStatefulWidget {
-  const _HomeHub();
+  final Set<String>? permissions;
+  const _HomeHub({this.permissions});
 
   @override
   ConsumerState<_HomeHub> createState() => _HomeHubState();
@@ -162,20 +208,33 @@ class _HomeHubState extends ConsumerState<_HomeHub> {
           : const Color(0xFFF1F5F9),
       body: CustomScrollView(
         slivers: [
+          if (widget.permissions == null ||
+              widget.permissions!.contains(StaffPermission.dashboard))
+            SliverToBoxAdapter(
+              child: _Header(
+                revenueToday: revenueToday,
+                fmt: fmt,
+                s: s,
+                permissions: widget.permissions,
+              ),
+            ),
           SliverToBoxAdapter(
-            child: _Header(revenueToday: revenueToday, fmt: fmt, s: s),
-          ),
-          SliverToBoxAdapter(
-            child: _ServicesSection(s: s, isDark: isDark),
-          ),
-          SliverToBoxAdapter(
-            child: _RecentSalesSection(
-              sales: recentSales.take(5).toList(),
-              fmt: fmt,
-              isDark: isDark,
+            child: _ServicesSection(
               s: s,
+              isDark: isDark,
+              permissions: widget.permissions,
             ),
           ),
+          if (widget.permissions == null ||
+              widget.permissions!.contains(StaffPermission.dashboard))
+            SliverToBoxAdapter(
+              child: _RecentSalesSection(
+                sales: recentSales.take(5).toList(),
+                fmt: fmt,
+                isDark: isDark,
+                s: s,
+              ),
+            ),
           const SliverToBoxAdapter(child: SizedBox(height: 40)),
         ],
       ),
@@ -189,15 +248,53 @@ class _Header extends StatelessWidget {
   final double revenueToday;
   final NumberFormat fmt;
   final AppStrings s;
+  final Set<String>? permissions;
 
   const _Header({
     required this.revenueToday,
     required this.fmt,
     required this.s,
+    this.permissions,
   });
 
   @override
   Widget build(BuildContext context) {
+    final canPos =
+        permissions == null || permissions!.contains(StaffPermission.pos);
+    final quickActions = <Widget>[];
+    void addQuickAction(Widget action) {
+      if (quickActions.isNotEmpty) quickActions.add(const SizedBox(width: 10));
+      quickActions.add(action);
+    }
+
+    if (canPos) {
+      addQuickAction(
+        _QuickAction(
+          icon: Icons.point_of_sale_rounded,
+          label: s.navPos,
+          onTap: () => context.push('/pos'),
+        ),
+      );
+    }
+    if (permissions == null ||
+        permissions!.contains(StaffPermission.inventory)) {
+      addQuickAction(
+        _QuickAction(
+          icon: Icons.inventory_2_rounded,
+          label: s.navWarehouse,
+          onTap: () => context.push('/warehouse'),
+        ),
+      );
+    }
+    if (permissions == null || permissions!.contains(StaffPermission.history)) {
+      addQuickAction(
+        _QuickAction(
+          icon: Icons.receipt_long_rounded,
+          label: s.historyLabel,
+          onTap: () => context.push('/history'),
+        ),
+      );
+    }
     final hour = DateTime.now().hour;
     final greeting = hour < 12
         ? 'Good morning'
@@ -296,52 +393,32 @@ class _Header extends StatelessWidget {
                   ],
                 ),
               ),
-              GestureDetector(
-                onTap: () => context.push('/pos'),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2563EB),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Text(
-                    'New Sale',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
+              if (canPos)
+                GestureDetector(
+                  onTap: () => context.push('/pos'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF2563EB),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: const Text(
+                      'New Sale',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
                 ),
-              ),
             ],
           ),
           const SizedBox(height: 24),
-          // Quick actions
-          Row(
-            children: [
-              _QuickAction(
-                icon: Icons.point_of_sale_rounded,
-                label: s.navPos,
-                onTap: () => context.push('/pos'),
-              ),
-              const SizedBox(width: 10),
-              _QuickAction(
-                icon: Icons.inventory_2_rounded,
-                label: s.navWarehouse,
-                onTap: () => context.push('/warehouse'),
-              ),
-              const SizedBox(width: 10),
-              _QuickAction(
-                icon: Icons.receipt_long_rounded,
-                label: 'History',
-                onTap: () => context.push('/history'),
-              ),
-            ],
-          ),
+          if (quickActions.isNotEmpty) ...[Row(children: quickActions)],
         ],
       ),
     );
@@ -396,49 +473,80 @@ class _QuickAction extends StatelessWidget {
 class _ServicesSection extends StatelessWidget {
   final AppStrings s;
   final bool isDark;
+  final Set<String>? permissions;
 
-  const _ServicesSection({required this.s, required this.isDark});
+  const _ServicesSection({
+    required this.s,
+    required this.isDark,
+    this.permissions,
+  });
 
   @override
   Widget build(BuildContext context) {
     final services = [
       _Svc(
+        Icons.point_of_sale_rounded,
+        s.navPos,
+        const Color(0xFF2563EB),
+        '/pos',
+        StaffPermission.pos,
+      ),
+      _Svc(
         Icons.inventory_2_rounded,
         s.navWarehouse,
         const Color(0xFF059669),
         '/warehouse',
+        StaffPermission.inventory,
       ),
       _Svc(
         Icons.receipt_long_rounded,
         s.historyLabel,
         const Color(0xFFF59E0B),
         '/history',
+        StaffPermission.history,
       ),
       _Svc(
         Icons.dashboard_rounded,
         s.navDashboard,
         const Color(0xFF7C3AED),
         '/dashboard',
+        StaffPermission.dashboard,
       ),
       _Svc(
         Icons.pending_actions_rounded,
         'বাকি হিসেব',
         const Color(0xFFF59E0B),
         '/baki',
+        StaffPermission.customerCredit,
       ),
       _Svc(
         Icons.bar_chart_rounded,
         s.reportsLabel,
         const Color(0xFF2563EB),
         '/reports',
+        StaffPermission.reports,
       ),
       _Svc(
         Icons.account_balance_wallet_rounded,
         s.dailyCashClose,
         const Color(0xFF0F766E),
         '/cash-close',
+        StaffPermission.cashClose,
+      ),
+      _Svc(
+        Icons.shopping_bag_outlined,
+        s.purchaseLabel,
+        const Color(0xFF9333EA),
+        '/purchases',
+        StaffPermission.purchases,
       ),
     ];
+    final visibleServices = services
+        .where(
+          (service) =>
+              permissions == null || permissions!.contains(service.permission),
+        )
+        .toList();
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -454,18 +562,21 @@ class _ServicesSection extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 8),
-          GridView.count(
-            crossAxisCount: 3,
-            shrinkWrap: true,
-            padding: EdgeInsets.zero,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 10,
-            childAspectRatio: 0.95,
-            children: services
-                .map((svc) => _ServiceTile(svc: svc, isDark: isDark))
-                .toList(),
-          ),
+          if (visibleServices.isEmpty)
+            Text(s.noStaffPermissions)
+          else
+            GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              padding: EdgeInsets.zero,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 10,
+              childAspectRatio: 0.95,
+              children: visibleServices
+                  .map((svc) => _ServiceTile(svc: svc, isDark: isDark))
+                  .toList(),
+            ),
         ],
       ),
     );
@@ -477,7 +588,8 @@ class _Svc {
   final String label;
   final Color color;
   final String? route;
-  const _Svc(this.icon, this.label, this.color, this.route);
+  final String permission;
+  const _Svc(this.icon, this.label, this.color, this.route, this.permission);
 }
 
 class _ServiceTile extends StatelessWidget {

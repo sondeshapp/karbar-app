@@ -9,6 +9,7 @@ import '../../providers/settings_provider.dart';
 import '../../db/database_helper.dart';
 import '../../models/sale.dart';
 import '../../providers/warehouse_provider.dart';
+import '../../providers/staff_provider.dart';
 import '../../models/customer.dart';
 import '../../core/quantity_format.dart';
 
@@ -196,6 +197,7 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     try {
       final returned = await DatabaseHelper().createSaleReturn(
         saleId: sale.id!,
+        staffId: ref.read(activeStaffProvider)?.id,
         quantitiesBySaleItemId: result.quantities,
         reason: result.reason,
         refundMethod: result.method,

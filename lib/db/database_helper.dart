@@ -20,6 +20,7 @@ import '../models/purchase.dart';
 import '../core/quantity_format.dart';
 import '../models/daily_cash_close.dart';
 import '../models/staff_user.dart';
+import '../models/staff_activity.dart';
 import '../models/sync_outbox_event.dart';
 import '../models/remote_sync_event.dart';
 import '../models/cloud_catalog.dart';
@@ -44,6 +45,7 @@ class DatabaseHelper {
     'app_settings',
     'daily_closes',
     'staff_users',
+    'staff_activity',
     'sync_outbox',
   ];
   static const _backupDeleteOrder = [
@@ -62,6 +64,7 @@ class DatabaseHelper {
     'customers',
     'daily_closes',
     'staff_users',
+    'staff_activity',
     'sync_outbox',
     'app_settings',
   ];
@@ -101,7 +104,7 @@ class DatabaseHelper {
     }
     return openDatabase(
       path,
-      version: 25,
+      version: 26,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
@@ -287,6 +290,7 @@ class DatabaseHelper {
       await _createStaffSyncIdentity(db);
     }
     if (oldVersion < 25) {
+      await _createStaffUserTable(db);
       await _addColumnIfMissing(
         db,
         table: 'staff_users',
@@ -294,6 +298,82 @@ class DatabaseHelper {
         definition: 'pin_length INTEGER NOT NULL DEFAULT 0',
       );
     }
+    if (oldVersion < 26) {
+      await _removeStaffRoleConstraint(db);
+      await _createStaffActivityTable(db);
+      await _backfillStaffActivity(db);
+    }
+  }
+
+  Future<void> _backfillStaffActivity(DatabaseExecutor db) async {
+    final tableRows = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type = 'table'",
+    );
+    final tables = tableRows.map((row) => row['name'] as String).toSet();
+    if (tables.contains('sales')) {
+      await db.execute('''
+      INSERT INTO staff_activity (
+        staff_id, staff_name, action, entity_type, entity_id, summary, created_at
+      )
+      SELECT s.staff_id,
+             COALESCE((SELECT u.name FROM staff_users u WHERE u.id = s.staff_id), 'Unknown staff'),
+             'sale_created', 'sale', s.id,
+             'Total ' || printf('%.2f', s.total_amount), s.created_at
+      FROM sales s
+      WHERE s.staff_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM staff_activity a
+          WHERE a.action = 'sale_created' AND a.entity_type = 'sale'
+            AND a.entity_id = s.id
+        )
+      ''');
+    }
+    if (tables.contains('daily_closes')) {
+      await db.execute('''
+      INSERT INTO staff_activity (
+        staff_id, staff_name, action, entity_type, entity_id, summary, created_at
+      )
+      SELECT c.staff_id,
+             COALESCE((SELECT u.name FROM staff_users u WHERE u.id = c.staff_id), 'Unknown staff'),
+             'cash_close_saved', 'daily_close', c.id,
+             c.business_date || ' · ' || printf('%.2f', c.counted_cash), c.closed_at
+      FROM daily_closes c
+      WHERE c.staff_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM staff_activity a
+          WHERE a.action = 'cash_close_saved' AND a.entity_type = 'daily_close'
+            AND a.entity_id = c.id
+        )
+      ''');
+    }
+  }
+
+  Future<void> _removeStaffRoleConstraint(Database db) async {
+    final tables = await db.rawQuery(
+      "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'staff_users'",
+    );
+    if (tables.isEmpty) {
+      await _createStaffUserTable(db);
+      return;
+    }
+    final schema = (tables.single['sql'] as String? ?? '')
+        .toLowerCase()
+        .replaceAll(RegExp(r'\s+'), '');
+    if (!schema.contains("check(rolein('owner','cashier'))")) return;
+    await db.execute(
+      'ALTER TABLE staff_users RENAME TO staff_users_role_backup',
+    );
+    await _createStaffUserTable(db);
+    await _createStaffActivityTable(db);
+    await db.execute('''
+      INSERT INTO staff_users (id, sync_id, name, role, pin_salt, pin_hash,
+                               pin_length, active, created_at)
+      SELECT id, sync_id, name, role, pin_salt, pin_hash,
+             pin_length, active, created_at
+      FROM staff_users_role_backup
+    ''');
+    await db.execute('DROP TABLE staff_users_role_backup');
+    await _createStaffSyncIdentity(db);
   }
 
   Future<void> _createTables(Database db) async {
@@ -410,6 +490,7 @@ class DatabaseHelper {
     await _createPurchaseTables(db);
     await _createDailyCloseTable(db);
     await _createStaffUserTable(db);
+    await _createStaffActivityTable(db);
     await _createStaffSyncIdentity(db);
     await _createSyncOutbox(db);
     await _createSyncInbox(db);
@@ -626,7 +707,7 @@ class DatabaseHelper {
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         sync_id TEXT,
         name TEXT NOT NULL,
-        role TEXT NOT NULL CHECK(role IN ('owner', 'cashier')),
+        role TEXT NOT NULL,
         pin_salt TEXT NOT NULL,
         pin_hash TEXT NOT NULL,
         pin_length INTEGER NOT NULL DEFAULT 0,
@@ -634,6 +715,24 @@ class DatabaseHelper {
         created_at TEXT NOT NULL
       )
     ''');
+  }
+
+  Future<void> _createStaffActivityTable(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS staff_activity (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        staff_id INTEGER,
+        staff_name TEXT NOT NULL,
+        action TEXT NOT NULL,
+        entity_type TEXT NOT NULL,
+        entity_id INTEGER,
+        summary TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS staff_activity_created_idx ON staff_activity(created_at DESC)',
+    );
   }
 
   Future<void> _createStaffSyncIdentity(DatabaseExecutor db) async {
@@ -788,7 +887,8 @@ class DatabaseHelper {
     required String pinHash,
     required int pinLength,
   }) async {
-    if (!{'owner', 'cashier'}.contains(role) || name.trim().isEmpty) {
+    if (!RegExp(r'^(owner|[a-z][a-z0-9_]{1,47})$').hasMatch(role) ||
+        name.trim().isEmpty) {
       throw ArgumentError('A staff name and valid role are required.');
     }
     final db = await database;
@@ -833,6 +933,38 @@ class DatabaseHelper {
     );
   }
 
+  Future<void> updateStaffUserRole(int id, String role) async {
+    if (!RegExp(r'^(owner|[a-z][a-z0-9_]{1,47})$').hasMatch(role)) {
+      throw ArgumentError('A valid staff role is required.');
+    }
+    final db = await database;
+    final rows = await db.query(
+      'staff_users',
+      columns: ['role', 'active'],
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    if (rows.isEmpty) throw StateError('Staff account no longer exists.');
+    if (rows.first['role'] == 'owner' &&
+        role != 'owner' &&
+        rows.first['active'] == 1) {
+      final owners = await db.query(
+        'staff_users',
+        columns: ['id'],
+        where: "role = 'owner' AND active = 1",
+      );
+      if (owners.length <= 1) {
+        throw StateError('At least one active owner must remain.');
+      }
+    }
+    await db.update(
+      'staff_users',
+      {'role': role},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
+
   Future<void> updateStaffPin(
     int id,
     String pinSalt,
@@ -857,6 +989,67 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [id],
     );
+  }
+
+  Future<List<StaffActivity>> getStaffActivity({int? staffId}) async {
+    final db = await database;
+    final rows = await db.query(
+      'staff_activity',
+      where: staffId == null ? null : 'staff_id = ?',
+      whereArgs: staffId == null ? null : [staffId],
+      orderBy: 'created_at DESC, id DESC',
+    );
+    return rows.map(StaffActivity.fromMap).toList();
+  }
+
+  Future<void> recordStaffActivity({
+    required int staffId,
+    required String action,
+    required String entityType,
+    int? entityId,
+    String summary = '',
+    DateTime? createdAt,
+  }) async {
+    final db = await database;
+    await db.transaction(
+      (txn) => _writeStaffActivity(
+        txn,
+        staffId: staffId,
+        action: action,
+        entityType: entityType,
+        entityId: entityId,
+        summary: summary,
+        createdAt: createdAt,
+      ),
+    );
+  }
+
+  Future<void> _writeStaffActivity(
+    DatabaseExecutor txn, {
+    required int? staffId,
+    required String action,
+    required String entityType,
+    int? entityId,
+    String summary = '',
+    DateTime? createdAt,
+  }) async {
+    if (staffId == null) return;
+    final staff = await txn.query(
+      'staff_users',
+      columns: ['name'],
+      where: 'id = ?',
+      whereArgs: [staffId],
+      limit: 1,
+    );
+    await txn.insert('staff_activity', {
+      'staff_id': staffId,
+      'staff_name': staff.firstOrNull?['name'] as String? ?? 'Unknown staff',
+      'action': action,
+      'entity_type': entityType,
+      'entity_id': entityId,
+      'summary': summary,
+      'created_at': (createdAt ?? DateTime.now()).toIso8601String(),
+    });
   }
 
   Future<Map<String, List<Map<String, Object?>>>> exportBackupTables() async {
@@ -2831,7 +3024,7 @@ class DatabaseHelper {
     return rows.map(ProductVariant.fromMap).toList();
   }
 
-  Future<int> insertProduct(Product product) async {
+  Future<int> insertProduct(Product product, {int? staffId}) async {
     final db = await database;
     return db.transaction((txn) async {
       final map = product.toMap()..remove('id');
@@ -2844,11 +3037,19 @@ class DatabaseHelper {
         vMap['sync_id'] = v.syncId ?? _newUuid();
         await txn.insert('product_variants', vMap);
       }
+      await _writeStaffActivity(
+        txn,
+        staffId: staffId,
+        action: 'product_added',
+        entityType: 'product',
+        entityId: productId,
+        summary: product.name,
+      );
       return productId;
     });
   }
 
-  Future<void> updateProduct(Product product) async {
+  Future<void> updateProduct(Product product, {int? staffId}) async {
     final db = await database;
     await db.transaction((txn) async {
       final productRows = await txn.query(
@@ -2917,20 +3118,29 @@ class DatabaseHelper {
           await txn.insert('product_variants', vMap);
         }
       }
+      await _writeStaffActivity(
+        txn,
+        staffId: staffId,
+        action: 'product_updated',
+        entityType: 'product',
+        entityId: product.id,
+        summary: product.name,
+      );
     });
   }
 
-  Future<void> deleteProduct(int id) async {
+  Future<void> deleteProduct(int id, {int? staffId}) async {
     final db = await database;
     await db.transaction((txn) async {
       final products = await txn.query(
         'products',
-        columns: ['sync_id'],
+        columns: ['sync_id', 'name'],
         where: 'id = ?',
         whereArgs: [id],
         limit: 1,
       );
       final syncId = products.firstOrNull?['sync_id'] as String?;
+      final productName = products.firstOrNull?['name'] as String? ?? '';
       if (syncId != null && syncId.isNotEmpty) {
         final shops = await txn.rawQuery(
           '''SELECT remote_shop_id FROM cloud_catalog_state
@@ -2953,6 +3163,14 @@ class DatabaseHelper {
         whereArgs: [id],
       );
       await txn.delete('products', where: 'id = ?', whereArgs: [id]);
+      await _writeStaffActivity(
+        txn,
+        staffId: staffId,
+        action: 'product_deleted',
+        entityType: 'product',
+        entityId: id,
+        summary: productName,
+      );
     });
   }
 
@@ -2961,6 +3179,7 @@ class DatabaseHelper {
     double quantity, {
     double costPrice = 0,
     String supplier = '',
+    int? staffId,
   }) async {
     if (!quantity.isFinite || quantity <= 0) {
       throw ArgumentError('Stock quantity must be a positive finite value.');
@@ -2986,6 +3205,20 @@ class DatabaseHelper {
         costPrice,
         supplier,
         DateTime.now(),
+      );
+      final product = await txn.rawQuery(
+        '''SELECT p.name FROM product_variants pv
+           JOIN products p ON p.id = pv.product_id WHERE pv.id = ?''',
+        [variantId],
+      );
+      await _writeStaffActivity(
+        txn,
+        staffId: staffId,
+        action: 'stock_received',
+        entityType: 'product_variant',
+        entityId: variantId,
+        summary:
+            '${product.firstOrNull?['name'] ?? ''} · +${quantity.toStringAsFixed(2)}',
       );
     });
   }
@@ -3017,7 +3250,7 @@ class DatabaseHelper {
     return rows.map(Supplier.fromMap).toList();
   }
 
-  Future<int> saveSupplier(Supplier supplier) async {
+  Future<int> saveSupplier(Supplier supplier, {int? staffId}) async {
     if (supplier.name.trim().isEmpty) {
       throw ArgumentError('Supplier name is required.');
     }
@@ -3025,7 +3258,17 @@ class DatabaseHelper {
     final values = supplier.toMap()..remove('id');
     if (supplier.id == null) {
       values['sync_id'] = supplier.syncId ?? _newUuid();
-      return db.insert('suppliers', values);
+      final id = await db.insert('suppliers', values);
+      if (staffId != null) {
+        await recordStaffActivity(
+          staffId: staffId,
+          action: 'supplier_added',
+          entityType: 'supplier',
+          entityId: id,
+          summary: supplier.name,
+        );
+      }
+      return id;
     }
     final existing = await db.query(
       'suppliers',
@@ -3043,6 +3286,15 @@ class DatabaseHelper {
       where: 'id = ?',
       whereArgs: [supplier.id],
     );
+    if (staffId != null) {
+      await recordStaffActivity(
+        staffId: staffId,
+        action: 'supplier_updated',
+        entityType: 'supplier',
+        entityId: supplier.id,
+        summary: supplier.name,
+      );
+    }
     return supplier.id!;
   }
 
@@ -3051,6 +3303,7 @@ class DatabaseHelper {
     required List<PurchaseLine> items,
     String note = '',
     DateTime? createdAt,
+    int? staffId,
   }) async {
     if (supplier.id == null ||
         items.isEmpty ||
@@ -3163,6 +3416,15 @@ class DatabaseHelper {
           'note': note.trim(),
           'items': syncItems,
         },
+      );
+      await _writeStaffActivity(
+        txn,
+        staffId: staffId,
+        action: 'purchase_recorded',
+        entityType: 'purchase',
+        entityId: purchaseId,
+        summary: '${supplier.name} · ${total.toStringAsFixed(2)}',
+        createdAt: date,
       );
       return purchaseId;
     });
@@ -3353,12 +3615,22 @@ class DatabaseHelper {
         }),
         'created_at': DateTime.now().toIso8601String(),
       });
+      await _writeStaffActivity(
+        txn,
+        staffId: sale.staffId,
+        action: 'sale_created',
+        entityType: 'sale',
+        entityId: saleId,
+        summary: 'Total ${sale.totalAmount.toStringAsFixed(2)}',
+        createdAt: sale.createdAt,
+      );
       return saleId;
     });
   }
 
   Future<SaleReturn> createSaleReturn({
     required int saleId,
+    int? staffId,
     required Map<int, double> quantitiesBySaleItemId,
     required String reason,
     required String refundMethod,
@@ -3545,6 +3817,15 @@ class DatabaseHelper {
         'refund_method': refundMethod,
         'created_at': returnedAt.toIso8601String(),
       });
+      await _writeStaffActivity(
+        txn,
+        staffId: staffId,
+        action: 'sale_returned',
+        entityType: 'sale_return',
+        entityId: returnId,
+        summary: 'Sale #$saleId · ${amount.toStringAsFixed(2)} · $refundMethod',
+        createdAt: returnedAt,
+      );
       for (final entry in quantitiesBySaleItemId.entries) {
         final row = saleById[entry.key]!;
         await txn.insert('sale_return_items', {
@@ -3709,10 +3990,20 @@ class DatabaseHelper {
 
   // ── Customers ─────────────────────────────────────────────────────────────
 
-  Future<int> insertCustomer(Customer customer) async {
+  Future<int> insertCustomer(Customer customer, {int? staffId}) async {
     final db = await database;
     final map = customer.toMap()..['sync_id'] = customer.syncId ?? _newUuid();
-    return db.insert('customers', map);
+    final id = await db.insert('customers', map);
+    if (staffId != null) {
+      await recordStaffActivity(
+        staffId: staffId,
+        action: 'customer_added',
+        entityType: 'customer',
+        entityId: id,
+        summary: customer.name,
+      );
+    }
+    return id;
   }
 
   Future<List<Customer>> getAllCustomers() async {
@@ -3733,10 +4024,27 @@ class DatabaseHelper {
 
   // ── Baki Payments ─────────────────────────────────────────────────────────
 
-  Future<int> insertBakiPayment(BakiPayment payment) async {
+  Future<int> insertBakiPayment(BakiPayment payment, {int? staffId}) async {
     final db = await database;
     return db.transaction((txn) async {
       final paymentId = await txn.insert('baki_payments', payment.toMap());
+      final customer = await txn.query(
+        'customers',
+        columns: ['name'],
+        where: 'id = ?',
+        whereArgs: [payment.customerId],
+        limit: 1,
+      );
+      await _writeStaffActivity(
+        txn,
+        staffId: staffId,
+        action: 'baki_payment_recorded',
+        entityType: 'customer_payment',
+        entityId: paymentId,
+        summary:
+            '${customer.firstOrNull?['name'] ?? ''} · ${payment.amount.toStringAsFixed(2)}',
+        createdAt: payment.paidAt,
+      );
       await _queueSyncEvent(
         txn,
         eventType: 'baki.payment_recorded',
@@ -3933,7 +4241,7 @@ class DatabaseHelper {
       throw ArgumentError('Close totals must be finite numbers.');
     }
     final db = await database;
-    return db.insert('daily_closes', {
+    final closeId = await db.insert('daily_closes', {
       'business_date': DateTime(
         close.businessDate.year,
         close.businessDate.month,
@@ -3950,6 +4258,18 @@ class DatabaseHelper {
       'closed_at': close.closedAt.toIso8601String(),
       'staff_id': close.staffId,
     });
+    if (close.staffId != null) {
+      await recordStaffActivity(
+        staffId: close.staffId!,
+        action: 'cash_close_saved',
+        entityType: 'daily_close',
+        entityId: closeId,
+        summary:
+            '${close.businessDate.toIso8601String().substring(0, 10)} · ${close.countedCash.toStringAsFixed(2)}',
+        createdAt: close.closedAt,
+      );
+    }
+    return closeId;
   }
 
   Future<List<DailyCashClose>> getDailyCloses({DateTime? businessDate}) async {
