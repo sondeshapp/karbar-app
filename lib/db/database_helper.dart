@@ -3896,6 +3896,12 @@ class DatabaseHelper {
 
   Future<List<Sale>> getAllSales() async {
     final db = await database;
+    final staffRows = await db.query('staff_users', columns: ['id', 'name']);
+    final staffNames = <int, String>{
+      for (final row in staffRows)
+        if (row['id'] is int && row['name'] is String)
+          row['id'] as int: row['name'] as String,
+    };
     final saleRows = await db.query('sales', orderBy: 'created_at DESC');
     final List<Sale> sales = [];
     for (final saleRow in saleRows) {
@@ -3971,6 +3977,7 @@ class DatabaseHelper {
           returnedAmount: (returnTotals.first['total'] as num).toDouble(),
           returnedBakiAmount: (returnTotals.first['baki'] as num).toDouble(),
           staffId: saleRow['staff_id'] as int?,
+          staffName: staffNames[saleRow['staff_id'] as int?],
         ),
       );
     }
@@ -4082,6 +4089,12 @@ class DatabaseHelper {
 
   Future<List<Sale>> getBakiSalesForCustomer(int customerId) async {
     final db = await database;
+    final staffRows = await db.query('staff_users', columns: ['id', 'name']);
+    final staffNames = <int, String>{
+      for (final row in staffRows)
+        if (row['id'] is int && row['name'] is String)
+          row['id'] as int: row['name'] as String,
+    };
     final saleRows = await db.query(
       'sales',
       where: 'customer_id = ? AND payment_type = ?',
@@ -4159,6 +4172,7 @@ class DatabaseHelper {
           returnedAmount: (returnTotals.first['total'] as num).toDouble(),
           returnedBakiAmount: (returnTotals.first['baki'] as num).toDouble(),
           staffId: saleRow['staff_id'] as int?,
+          staffName: staffNames[saleRow['staff_id'] as int?],
         ),
       );
     }

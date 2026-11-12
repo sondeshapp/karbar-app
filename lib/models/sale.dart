@@ -16,6 +16,7 @@ class Sale {
   final double returnedBakiAmount;
   final double returnedAmount;
   final int? staffId;
+  final String? staffName;
 
   const Sale({
     this.id,
@@ -32,6 +33,7 @@ class Sale {
     this.returnedBakiAmount = 0,
     this.returnedAmount = 0,
     this.staffId,
+    this.staffName,
   });
 
   bool get isBaki => paymentType == 'baki';

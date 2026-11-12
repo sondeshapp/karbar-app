@@ -20,6 +20,10 @@
 
 <br/>
 
+<img src="docs/screenshot.png" alt="Karbar App Screenshot" width="100%" />
+
+<br/>
+
 ---
 
 </div>

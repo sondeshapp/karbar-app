@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -654,12 +655,29 @@ class _ItemRow extends StatelessWidget {
     final avatarColor = item.product.name.isEmpty
         ? _avatarColors[0]
         : _avatarColors[item.product.name.codeUnitAt(0) % _avatarColors.length];
+    final imagePath = item.product.imagePath;
+    final hasImage = imagePath.isNotEmpty && File(imagePath).existsSync();
+
+    Widget buildFallbackAvatar() {
+      return Center(
+        child: Text(
+          item.product.name.isNotEmpty
+              ? item.product.name[0].toUpperCase()
+              : '?',
+          style: TextStyle(
+            color: avatarColor,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+      );
+    }
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: kPadding, vertical: 8),
       child: Row(
         children: [
-          // Colored avatar
+          // Product thumbnail or colored avatar fallback
           Container(
             width: 40,
             height: 40,
@@ -667,18 +685,14 @@ class _ItemRow extends StatelessWidget {
               color: avatarColor.withAlpha(30),
               borderRadius: BorderRadius.circular(10),
             ),
-            child: Center(
-              child: Text(
-                item.product.name.isNotEmpty
-                    ? item.product.name[0].toUpperCase()
-                    : '?',
-                style: TextStyle(
-                  color: avatarColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-            ),
+            clipBehavior: Clip.antiAlias,
+            child: hasImage
+                ? Image.file(
+                    File(imagePath),
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, _, _) => buildFallbackAvatar(),
+                  )
+                : buildFallbackAvatar(),
           ),
           const SizedBox(width: 10),
 
