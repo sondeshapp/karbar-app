@@ -13,6 +13,7 @@ import '../../models/sale.dart';
 import '../../providers/receipt_design_provider.dart';
 import '../../providers/sales_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/staff_provider.dart';
 import '../receipt/receipt_screen.dart';
 
 class ReceiptDesignScreen extends ConsumerStatefulWidget {
@@ -121,6 +122,7 @@ class _ReceiptDesignScreenState extends ConsumerState<ReceiptDesignScreen> {
   Widget build(BuildContext context) {
     final strings = ref.watch(stringsProvider);
     final settings = ref.watch(settingsProvider);
+    final activeStaff = ref.watch(activeStaffProvider);
     final sales = ref.watch(salesProvider);
     final sale = _latestSale(sales);
     final colors = Theme.of(context).colorScheme;
@@ -277,6 +279,7 @@ class _ReceiptDesignScreenState extends ConsumerState<ReceiptDesignScreen> {
                                 currencyLocale: settings.currencyLocale,
                                 settings: settings,
                                 design: _design,
+                                generatedBy: activeStaff?.name,
                               );
                               return document.save();
                             },

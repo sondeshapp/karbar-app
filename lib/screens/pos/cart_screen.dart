@@ -39,6 +39,7 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         : payments.length == 1
         ? payments.single.method
         : 'split';
+    final activeStaff = ref.read(activeStaffProvider);
     final sale = Sale(
       items: List.from(cartItems),
       totalAmount: notifier.totalAmount,
@@ -50,7 +51,8 @@ class _CartScreenState extends ConsumerState<CartScreen> {
       discountType: notifier.orderDiscountType,
       taxAmount: notifier.taxAmount,
       payments: payments,
-      staffId: ref.read(activeStaffProvider)?.id,
+      staffId: activeStaff?.id,
+      staffName: activeStaff?.name,
     );
     try {
       await ref.read(salesProvider.notifier).completeSale(sale);

@@ -289,6 +289,15 @@ class _HistoryScreenState extends ConsumerState<HistoryScreen> {
     return Scaffold(
       backgroundColor: pageBackground,
       appBar: AppBar(
+        leading: BackButton(
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/');
+            }
+          },
+        ),
         title: Text(s.salesHistory),
         backgroundColor: pageBackground,
         surfaceTintColor: Colors.transparent,
